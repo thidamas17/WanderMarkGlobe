@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Outer Orbit Arc on the Left -->
+  <path
+    d="M 120 455 C 40 375, 45 180, 145 92 C 185 55, 240 45, 290 58"
+    stroke="#152238"
+    stroke-width="22"
+    stroke-linecap="round"
+  />
+
+  <!-- Main Globe Outer Circle -->
+  <circle
+    cx="240"
+    cy="275"
+    r="165"
+    fill="#fdfaf3"
+    stroke="#152238"
+    stroke-width="22"
+  />
+
+  <!-- Globe Equator (horizontal line) -->
+  <line
+    x1="75"
+    y1="275"
+    x2="405"
+    y2="275"
+    stroke="#152238"
+    stroke-width="22"
+    stroke-linecap="round"
+  />
+
+  <!-- Globe North Latitude (curves down towards equator) -->
+  <path
+    d="M 102 195 C 145 220, 335 220, 378 195"
+    stroke="#152238"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <!-- Globe South Latitude (curves up towards equator) -->
+  <path
+    d="M 102 355 C 145 330, 335 330, 378 355"
+    stroke="#152238"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <!-- Prime Meridian (center vertical line) -->
+  <line
+    x1="240"
+    y1="110"
+    x2="240"
+    y2="440"
+    stroke="#152238"
+    stroke-width="22"
+    stroke-linecap="round"
+  />
+
+  <!-- West Meridian (curves left) -->
+  <path
+    d="M 240 110 C 150 160, 150 390, 240 440"
+    stroke="#152238"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <!-- East Meridian (curves right) -->
+  <path
+    d="M 240 110 C 330 160, 330 390, 240 440"
+    stroke="#152238"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <!-- East Meridian Accent Segment -->
+  <path
+    d="M 326 220 C 328 235, 328 245, 326 260"
+    stroke="#152238"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <!-- Outer Orbit Arc on the Right -->
+  <path
+    d="M 395 148 C 430 205, 440 265, 432 315"
+    stroke="#152238"
+    stroke-width="22"
+    stroke-linecap="round"
+  />
+
+  <!-- Location Pin (Top Right of Globe) -->
+  <g transform="translate(345, 115) rotate(16)">
+    <!-- Red Pin Body -->
+    <path
+      d="M 0 -68 C 38 -68, 68 -38, 68 0 C 68 35, 35 75, 0 118 C -35 75, -68 35, -68 0 C -68 -38, -38 -68, 0 -68 Z"
+      fill="#ef5c49"
+      stroke="#152238"
+      stroke-width="22"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+    <!-- White Inner Hole -->
+    <circle
+      cx="0"
+      cy="0"
+      r="24"
+      fill="#ffffff"
+      stroke="#152238"
+      stroke-width="20"
+    />
+  </g>
+
+  <!-- Postage Stamp (Bottom Right of Globe) -->
+  <g id="postage-stamp">
+    <!-- Stamp Base with die-cut scalloped teeth -->
+    <path
+      d="
+        M 276 300
+        A 9 9 0 0 0 294 300
+        A 9 9 0 0 0 312 300
+        A 9 9 0 0 0 330 300
+        A 9 9 0 0 0 348 300
+        A 9 9 0 0 0 366 300
+        A 9 9 0 0 0 384 300
+        A 9 9 0 0 0 402 300
+        A 9 9 0 0 0 420 300
+        L 435 300
+        L 435 315
+        A 9 9 0 0 0 435 333
+        A 9 9 0 0 0 435 351
+        A 9 9 0 0 0 435 369
+        A 9 9 0 0 0 435 387
+        A 9 9 0 0 0 435 405
+        A 9 9 0 0 0 435 423
+        A 9 9 0 0 0 435 441
+        L 435 455
+        L 420 455
+        A 9 9 0 0 0 402 455
+        A 9 9 0 0 0 384 455
+        A 9 9 0 0 0 366 455
+        A 9 9 0 0 0 348 455
+        A 9 9 0 0 0 330 455
+        A 9 9 0 0 0 312 455
+        A 9 9 0 0 0 294 455
+        A 9 9 0 0 0 276 455
+        L 265 455
+        L 265 441
+        A 9 9 0 0 0 265 423
+        A 9 9 0 0 0 265 405
+        A 9 9 0 0 0 265 387
+        A 9 9 0 0 0 265 369
+        A 9 9 0 0 0 265 351
+        A 9 9 0 0 0 265 333
+        A 9 9 0 0 0 265 315
+        Z
+      "
+      fill="#faedd9"
+      stroke="#152238"
+      stroke-width="19"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+
+    <!-- Inner Stamp vignette square (Peach/Salmon) -->
+    <rect
+      x="290"
+      y="325"
+      width="120"
+      height="105"
+      rx="3"
+      fill="#f99d79"
+    />
+
+    <!-- Postmark Sun/Circle -->
+    <circle
+      cx="350"
+      cy="377"
+      r="34"
+      stroke="#152238"
+      stroke-width="16"
+      fill="none"
+    />
+
+    <!-- 3 Wavy Postal Cancellation Lines -->
+    <path
+      d="M 298 373 C 314 365, 330 365, 350 373 C 370 381, 386 381, 402 373"
+      stroke="#152238"
+      stroke-width="15"
+      stroke-linecap="round"
+      fill="none"
+    />
+    <path
+      d="M 298 389 C 314 381, 330 381, 350 389 C 370 397, 386 397, 402 389"
+      stroke="#152238"
+      stroke-width="15"
+      stroke-linecap="round"
+      fill="none"
+    />
+    <path
+      d="M 298 405 C 314 397, 330 397, 350 405 C 370 413, 386 413, 402 405"
+      stroke="#152238"
+      stroke-width="15"
+      stroke-linecap="round"
+      fill="none"
+    />
+  </g>
+</svg>

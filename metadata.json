@@ -1,0 +1,8 @@
+{
+  "name": "WanderMark - Explorer's Log & Vintage Travel Keepsake",
+  "description": "Archival travel journal combining 3D interactive postcards, philatelic stamp crafting, stamped explorer passport, and interactive 3D globe cartography.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
