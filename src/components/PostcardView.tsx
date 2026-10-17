@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
-import { PostcardItem } from '../types';
+import React, { useState, useMemo } from 'react';
+import { PostcardItem, StampItem } from '../types';
+import { INITIAL_STAMPS } from '../data/mockData';
 import { CreatePostcardModal } from './CreatePostcardModal';
 import { StampPerforatedFrame } from './StampPerforatedFrame';
 
 interface PostcardViewProps {
   postcards: PostcardItem[];
+  savedStamps?: StampItem[];
   onAddPostcard: (postcard: PostcardItem) => void;
+  onUpdatePostcard?: (postcard: PostcardItem) => void;
   onToast: (msg: string) => void;
 }
 
 export const PostcardView: React.FC<PostcardViewProps> = ({
   postcards,
+  savedStamps = [],
   onAddPostcard,
+  onUpdatePostcard,
   onToast,
 }) => {
   const [selectedPostcardId, setSelectedPostcardId] = useState<string>(postcards[0]?.id || '');
   const [isBackSide, setIsBackSide] = useState<boolean>(true);
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+  const [isStampPickerOpen, setIsStampPickerOpen] = useState<boolean>(false);
 
   const activePostcard = postcards.find((p) => p.id === selectedPostcardId) || postcards[0];
 
@@ -39,6 +45,46 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
     if (!activePostcard) return;
     navigator.clipboard?.writeText?.(activePostcard.journalText);
     onToast('คัดลอกข้อความบันทึกประจำโปสการ์ดแล้ว');
+  };
+
+  // รวมรายการ Stamp ที่บันทึกไว้ (User Saved Stamps + Explorer Stamps)
+  const allAvailableStamps: StampItem[] = useMemo(() => {
+    const list: StampItem[] = [];
+    const seenIds = new Set<string>();
+
+    if (savedStamps && savedStamps.length > 0) {
+      savedStamps.forEach((s) => {
+        if (!seenIds.has(s.id)) {
+          seenIds.add(s.id);
+          list.push(s);
+        }
+      });
+    }
+
+    INITIAL_STAMPS.forEach((s) => {
+      if (!seenIds.has(s.id)) {
+        seenIds.add(s.id);
+        list.push(s);
+      }
+    });
+
+    return list;
+  }, [savedStamps]);
+
+  // เปลี่ยนแสตมป์บนโปสการ์ดจาก Stamp ที่เลือก
+  const handleSelectStamp = (stamp: StampItem) => {
+    if (!activePostcard) return;
+    const updated: PostcardItem = {
+      ...activePostcard,
+      stampImageUrl: stamp.imageUrl,
+      stampCountry: stamp.banner || stamp.country,
+      stampPrice: stamp.price,
+      postmarkCity: stamp.postmarkStation || activePostcard.postmarkCity,
+      postmarkDate: stamp.postmarkDate || activePostcard.postmarkDate,
+    };
+    onUpdatePostcard?.(updated);
+    setIsStampPickerOpen(false);
+    onToast(`ติดแสตมป์ "${stamp.title}" บนโปสการ์ดเรียบร้อยแล้ว`);
   };
 
   if (postcards.length === 0 || !activePostcard) {
@@ -254,21 +300,36 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
 
                   {/* RIGHT SIDE: Stamp & Address Lines */}
                   <div className="col-span-5 flex flex-col justify-between pl-2">
-                    {/* Authentic Die-Cut Perforated Postage Stamp */}
+                    {/* Authentic Die-Cut Perforated Postage Stamp (สามารถเลือก Stamp จากที่บันทึกไว้ได้) */}
                     <div className="flex justify-end relative">
-                      <StampPerforatedFrame
-                        size="sm"
-                        imageUrl={activePostcard.stampImageUrl}
-                        imageAlt="Postcard Stamp"
-                        banner={activePostcard.stampCountry}
-                        price={activePostcard.stampPrice}
-                        postmarkStation={activePostcard.postmarkCity}
-                        postmarkDate={activePostcard.postmarkDate}
-                        postmarkType="OFFICIAL"
-                        serialNumber=""
-                        locationName=""
-                        className="w-16 sm:w-20"
-                      />
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsStampPickerOpen(true);
+                        }}
+                        className="relative cursor-pointer group/stamp transition-all hover:scale-105 active:scale-95 rounded"
+                        title="แตะเพื่อเลือก Stamp จากที่บันทึกไว้"
+                      >
+                        <StampPerforatedFrame
+                          size="sm"
+                          imageUrl={activePostcard.stampImageUrl}
+                          imageAlt="Postcard Stamp"
+                          banner={activePostcard.stampCountry}
+                          price={activePostcard.stampPrice}
+                          postmarkStation={activePostcard.postmarkCity}
+                          postmarkDate={activePostcard.postmarkDate}
+                          postmarkType="OFFICIAL"
+                          serialNumber=""
+                          locationName=""
+                          className="w-16 sm:w-20"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover/stamp:bg-black/35 rounded transition-all flex items-center justify-center pointer-events-none">
+                          <span className="opacity-0 group-hover/stamp:opacity-100 bg-[#6f4315] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm transition-opacity flex items-center gap-0.5 whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[10px]">approval</span>
+                            <span>เลือก Stamp</span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Recipient Postal Address Lines */}
@@ -427,6 +488,101 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
           onToast(`สร้างโปสการ์ด "${newCard.frontTitle}" สำเร็จ!`);
         }}
       />
+
+      {/* Stamp Picker Modal (สามารถเลือก Stamp จากที่บันทึกไว้ได้) */}
+      {isStampPickerOpen && (
+        <div
+          onClick={() => setIsStampPickerOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#fff8f0] rounded-2xl shadow-2xl border border-[#d5c3b6] p-4 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#ece2cc]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#6f4315] text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-[18px]">approval</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold">
+                    เลือก Stamp สำหรับโปสการ์ด
+                  </h3>
+                  <p className="font-label-coord text-[10px] text-[#837469]">
+                    เลือกแสตมป์จากคอลเลกชันที่บันทึกไว้ ({allAvailableStamps.length} ตรา)
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsStampPickerOpen(false)}
+                className="w-7 h-7 rounded-lg text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Stamp Grid */}
+            <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-2 sm:grid-cols-3 gap-2.5 my-1">
+              {allAvailableStamps.map((st) => {
+                const isCurrent = activePostcard?.stampImageUrl === st.imageUrl;
+                return (
+                  <div
+                    key={st.id}
+                    onClick={() => handleSelectStamp(st)}
+                    className={`p-2 rounded-xl bg-white border cursor-pointer transition-all flex flex-col items-center text-center shadow-2xs hover:shadow-md hover:scale-[1.02] active:scale-98 ${
+                      isCurrent
+                        ? 'border-[#6f4315] ring-2 ring-[#ffdcc1] bg-[#fdf3dc]/50'
+                        : 'border-[#ece2cc] hover:border-[#6f4315]/50'
+                    }`}
+                  >
+                    <div className="w-16 h-20 mb-1 flex items-center justify-center">
+                      <StampPerforatedFrame
+                        size="sm"
+                        imageUrl={st.imageUrl}
+                        imageAlt={st.title}
+                        banner={st.banner}
+                        price={st.price}
+                        postmarkStation={st.postmarkStation}
+                        postmarkDate={st.postmarkDate}
+                        postmarkType={st.postmarkType}
+                        serialNumber=""
+                        locationName=""
+                        className="w-16 pointer-events-none"
+                      />
+                    </div>
+                    <span className="font-headline-sm text-[11px] text-[#201b0e] font-bold truncate w-full mt-0.5">
+                      {st.title}
+                    </span>
+                    <span className="font-label-coord text-[9px] text-[#6f4315] font-semibold">
+                      {st.country} • {st.price}
+                    </span>
+                    {isCurrent && (
+                      <span className="mt-1 font-label-stamp text-[8px] bg-[#6f4315] text-white px-1.5 py-0.2 rounded font-bold">
+                        กำลังใช้งาน
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-2.5 mt-1 border-t border-[#ece2cc] flex items-center justify-between text-xs text-[#837469]">
+              <span className="font-label-coord text-[10px]">แตะเพื่อติดแสตมป์ลงบนโปสการ์ดทันที</span>
+              <button
+                type="button"
+                onClick={() => setIsStampPickerOpen(false)}
+                className="px-3 py-1.5 rounded-lg bg-[#ece2cc] hover:bg-[#d5c3b6] text-[#51443a] font-semibold text-xs transition-colors cursor-pointer"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,6 +5,7 @@ import {
   POPULAR_WORLD_LOCATIONS,
   searchLocalGazetteer,
   formatCoordinates,
+  getLocationPhoto,
 } from '../utils/worldLocations';
 
 export interface AddPinInitialData {
@@ -194,9 +195,7 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({
       categoryTag: tag,
       isStamped: true,
       memoriesCount: 1,
-      imageUrl:
-        initialData?.photo ||
-        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&auto=format&fit=crop&q=80',
+      imageUrl: getLocationPhoto(city, country, initialData?.photo),
       status: 'VERIFIED',
       pinStyle,
       pinColor,

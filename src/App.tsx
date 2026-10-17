@@ -171,6 +171,12 @@ export default function App() {
     setPostcards((prev) => [newCard, ...prev]);
   };
 
+  const handleUpdatePostcard = (updatedCard: PostcardItem) => {
+    setPostcards((prev) =>
+      prev.map((c) => (c.id === updatedCard.id ? updatedCard : c))
+    );
+  };
+
   const handleAddStamp = (newStamp: StampItem) => {
     setStamps((prev) => [newStamp, ...prev]);
   };
@@ -198,6 +204,32 @@ export default function App() {
       pageNumber: 7,
     };
     setPassportStamps((prev) => [...prev, autoVisa]);
+  };
+
+  const handleUpdatePinDate = (pinOrStampId: string, newDate: string) => {
+    setGlobePins((prev) =>
+      prev.map((p) => {
+        if (p.id === pinOrStampId || `visa-${p.id}` === pinOrStampId || p.code === pinOrStampId) {
+          return { ...p, date: newDate };
+        }
+        return p;
+      })
+    );
+    setPassportStamps((prev) =>
+      prev.map((s) => {
+        if (s.id === pinOrStampId || s.code === pinOrStampId) {
+          return { ...s, date: newDate };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleDeleteGlobePin = (pinId: string) => {
+    setGlobePins((prev) => prev.filter((p) => p.id !== pinId));
+    setPassportStamps((prev) =>
+      prev.filter((s) => s.id !== `visa-${pinId}` && s.id !== pinId)
+    );
   };
 
   // Sign up as new user -> Upon first use, all data resets to zero!
@@ -310,7 +342,9 @@ export default function App() {
         {activeTab === 'postcards' && (
           <PostcardView
             postcards={postcards}
+            savedStamps={stamps}
             onAddPostcard={handleAddPostcard}
+            onUpdatePostcard={handleUpdatePostcard}
             onToast={showToast}
           />
         )}
@@ -326,8 +360,10 @@ export default function App() {
         {activeTab === 'passport' && (
           <PassportView
             stamps={passportStamps}
+            pins={globePins}
             userProfile={userProfile}
             onAddStamp={handleAddPassportStamp}
+            onUpdatePinDate={handleUpdatePinDate}
             onOpenGlobe={() => setActiveTab('globe')}
             onToast={showToast}
           />
@@ -337,6 +373,8 @@ export default function App() {
           <GlobeView
             pins={globePins}
             onAddPin={handleAddGlobePin}
+            onUpdatePinDate={handleUpdatePinDate}
+            onDeletePin={handleDeleteGlobePin}
             onNavigateTab={(tab) => setActiveTab(tab)}
             onToast={showToast}
           />

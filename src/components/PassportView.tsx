@@ -1,88 +1,162 @@
-import React, { useState, useEffect } from 'react';
-import { PassportVisaStamp, UserProfile } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { PassportVisaStamp, GlobePin, UserProfile } from '../types';
 import { ExportPassportModal } from './ExportPassportModal';
 
 interface PassportViewProps {
   stamps: PassportVisaStamp[];
+  pins?: GlobePin[];
   userProfile?: UserProfile;
   onAddStamp: (stamp: PassportVisaStamp) => void;
+  onUpdatePinDate?: (pinOrStampId: string, newDate: string) => void;
   onOpenGlobe: () => void;
   onToast: (msg: string) => void;
 }
 
+type SpreadType = '01-02' | '03-04' | '05-06' | '07-08';
+
 export const PassportView: React.FC<PassportViewProps> = ({
   stamps,
+  pins = [],
   userProfile,
   onAddStamp,
+  onUpdatePinDate,
   onOpenGlobe,
   onToast,
 }) => {
-  const [activeSpread, setActiveSpread] = useState<'04-05' | '06-07' | '08-09'>('06-07');
-  const [selectedStamp, setSelectedStamp] = useState<PassportVisaStamp | null>(stamps[0] || null);
+  // เริ่มต้นที่ หน้า 1 (Spread 01-02) ตามที่ผู้ใช้สั่ง
+  const [activeSpread, setActiveSpread] = useState<SpreadType>('01-02');
+  const [selectedStamp, setSelectedStamp] = useState<PassportVisaStamp | null>(null);
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
 
+  // การแก้ไขวันที่บันทึกพิกัด (Editable Pin / Stamp Date)
+  const [customDates, setCustomDates] = useState<Record<string, string>>({});
+  const [isEditingDate, setIsEditingDate] = useState<boolean>(false);
+  const [tempDate, setTempDate] = useState<string>('');
+
+  // การแสตมป์อ้างอิงจากการปักหมุดของผู้ใช้ (Stamps linked directly from user pins)
+  const effectiveStamps: PassportVisaStamp[] = useMemo(() => {
+    if (pins && pins.length > 0) {
+      // แปลงหมุดที่ผู้ใช้ปักไว้เป็นตราประทับวีซ่าในเล่มพาสปอร์ตโดยตรง
+      return pins.map((pin, idx) => {
+        const shapes: ('hexagon' | 'rectangle' | 'oval' | 'circle' | 'star')[] = [
+          'hexagon',
+          'rectangle',
+          'oval',
+          'circle',
+        ];
+        const colors = ['#ba1a1a', '#465f88', '#6f4315', '#2e476f', '#7f601f'];
+        const stampId = `visa-${pin.id}`;
+        const finalDate = customDates[stampId] || customDates[pin.id] || pin.date;
+
+        return {
+          id: stampId,
+          country: `${pin.country} (${pin.city})`,
+          date: finalDate,
+          location: `${pin.city} Expedition Station`,
+          coords: pin.latLngDisplay,
+          type: `${pin.categoryTag || pin.region || 'พิกัดโลกจริง'} • Verified Entry`,
+          note: `ปักหมุดสำเร็จ ณ ${pin.city}, ${pin.country} บันทึกพิกัดจริง ${pin.latLngDisplay}`,
+          icon: pin.pinStyle === 'flag' ? 'flag' : pin.pinStyle === 'needle' ? 'push_pin' : 'location_on',
+          code: pin.code || `WM-${idx + 101}`,
+          shape: shapes[idx % shapes.length],
+          color: pin.pinColor || colors[idx % colors.length],
+          admitted: 'VERIFIED',
+          pageNumber: Math.floor(idx / 2) + 2,
+        };
+      });
+    }
+    // ถ้าผู้ใช้ยังไม่ได้ปักหมุด ให้เซ็ทเป็น 0 (empty array)
+    return [];
+  }, [pins, customDates]);
+
+  // ซิงค์การเลือกตราประทับ
   useEffect(() => {
-    if (stamps.length > 0 && (!selectedStamp || !stamps.find((s) => s.id === selectedStamp.id))) {
-      setSelectedStamp(stamps[0]);
-    } else if (stamps.length === 0) {
+    if (effectiveStamps.length > 0) {
+      if (!selectedStamp || !effectiveStamps.find((s) => s.id === selectedStamp.id)) {
+        setSelectedStamp(effectiveStamps[0]);
+      }
+    } else {
       setSelectedStamp(null);
     }
-  }, [stamps]);
+  }, [effectiveStamps, selectedStamp]);
 
   const handlePrevPage = () => {
-    if (activeSpread === '08-09') setActiveSpread('06-07');
-    else if (activeSpread === '06-07') {
-      setActiveSpread('04-05');
-      onToast('เปิดหน้า 04 - 05: หมวดวีซ่าเอเชียตะวันออกเฉียงใต้');
+    if (activeSpread === '07-08') {
+      setActiveSpread('05-06');
+      onToast('เปิดหน้า 05 – 06: ตราประทับบันทึกการเดินทาง');
+    } else if (activeSpread === '05-06') {
+      setActiveSpread('03-04');
+      onToast('เปิดหน้า 03 – 04: ตราประทับบันทึกการเดินทาง');
+    } else if (activeSpread === '03-04') {
+      setActiveSpread('01-02');
+      onToast('เปิดหน้า 01 – 02: ข้อมูลส่วนตัวนักสำรวจ & วีซ่าหน้าแรก');
     }
   };
 
   const handleNextPage = () => {
-    if (activeSpread === '04-05') setActiveSpread('06-07');
-    else if (activeSpread === '06-07') {
-      setActiveSpread('08-09');
-      onToast('เปิดหน้า 08 - 09: หมวดบันทึกเส้นทางทวีปอเมริกา');
+    if (activeSpread === '01-02') {
+      setActiveSpread('03-04');
+      onToast('เปิดหน้า 03 – 04: ตราประทับบันทึกการเดินทาง');
+    } else if (activeSpread === '03-04') {
+      setActiveSpread('05-06');
+      onToast('เปิดหน้า 05 – 06: ตราประทับบันทึกการเดินทาง');
+    } else if (activeSpread === '05-06') {
+      setActiveSpread('07-08');
+      onToast('เปิดหน้า 07 – 08: ตราประทับบันทึกการเดินทาง');
     }
   };
 
-  const handleAutoStamp = () => {
-    const newVisa: PassportVisaStamp = {
-      id: `visa-${Date.now()}`,
-      country: 'อิตาลี (ITALY)',
-      date: '28 ต.ค. 2024',
-      location: 'Aeroporto di Firenze-Peretola (FLR)',
-      coords: '43.8100° N, 11.2051° E',
-      type: 'Tuscany Cultural Pass • 30 Days',
-      note: 'ประทับตราผ่านด่านตรวจเมืองฟลอเรนซ์ มุ่งหน้าชมภาพวาดกำแพงโบราณและสถาปัตยกรรมโดมบรูเนลเลสกี',
-      icon: 'palette',
-      code: 'FIRENZE / FLR',
-      shape: 'hexagon',
-      color: '#6f4315',
-      admitted: 'TUSCANY ENTRY',
-      pageNumber: 7,
-    };
-    onAddStamp(newVisa);
-    setSelectedStamp(newVisa);
-    onToast('ประทับตราเมืองเวนิส & ฟลอเรนซ์ ลงในสมุดเรียบร้อย!');
+  // ดึงตราประทับประจำหน้านั้นๆ (2 ตราต่อหน้า)
+  const getStampsForPage = (pageNum: number) => {
+    const startIndex = (pageNum - 2) * 2;
+    if (startIndex < 0) return [];
+    return effectiveStamps.slice(startIndex, startIndex + 2);
   };
+
+  // บันทึกการแก้ไขวันที่บันทึกพิกัด (Save edited date)
+  const handleSaveDate = (stampId: string, newDate: string) => {
+    const trimmed = newDate.trim();
+    if (!trimmed) {
+      onToast('กรุณาระบุวันที่');
+      return;
+    }
+    setCustomDates((prev) => ({
+      ...prev,
+      [stampId]: trimmed,
+    }));
+    if (selectedStamp && selectedStamp.id === stampId) {
+      setSelectedStamp((prev) => (prev ? { ...prev, date: trimmed } : null));
+    }
+    onUpdatePinDate?.(stampId, trimmed);
+    setIsEditingDate(false);
+    onToast(`แก้ไขวันที่บันทึกพิกัดเป็น "${trimmed}" เรียบร้อยแล้ว`);
+  };
+
+  // ตรวจสอบข้อมูลผู้ใช้สำหรับแสดงในหน้า 1
+  const docId = userProfile?.docId || 'WM-000000';
+  const fullName = userProfile?.fullName || 'นักสำรวจคนใหม่';
+  const username = userProfile?.username || 'explorer';
+  const avatarUrl = userProfile?.avatarUrl || '/logo.svg';
+  const registeredDate = userProfile?.registeredAt || new Date().toLocaleDateString('th-TH');
+  const titleRank = userProfile?.titleRank || 'NOVICE EXPLORER';
 
   return (
     <div className="flex flex-col w-full pb-24 max-w-2xl mx-auto">
-      {/* Booklet Spine Header & Page Turner */}
+      {/* Top Header & Page Turner */}
       <div className="px-4 pt-3 pb-2 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span className="material-symbols-outlined text-[#6f4315] text-[20px]">
-              book_2
+              menu_book
             </span>
             <span className="font-label-coord text-[10px] text-[#465f88] tracking-widest uppercase font-bold">
-              DOC ID: TH-892041
+              DOC ID: {docId}
             </span>
           </div>
-          <div className="bg-[#ece2cc] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm border border-[#d5c3b6]/50">
+          <div className="bg-[#ece2cc] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs border border-[#d5c3b6]/50">
             <span className="w-1.5 h-1.5 rounded-full bg-[#7f601f] animate-pulse" />
             <span className="font-label-stamp text-[9px] text-[#51443a] uppercase font-bold">
-              EXPEDITION READY
+              {effectiveStamps.length > 0 ? `${effectiveStamps.length} ตราประทับในเล่ม` : 'เริ่มต้นที่ 0 ตราประทับ'}
             </span>
           </div>
         </div>
@@ -97,430 +171,563 @@ export const PassportView: React.FC<PassportViewProps> = ({
             </p>
           </div>
           <span className="font-label-coord text-[10px] text-[#644807] font-bold tracking-wider">
-            SERIES 2024-B
+            SERIES 2026-ARCHIVE
           </span>
         </div>
 
-        {/* Antique Page Flipper Control */}
-        <div className="mt-1 bg-[#f2e7d1] rounded-full p-1 flex items-center justify-between shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)] border border-[#d5c3b6]/60">
+        {/* Clear & Easy Page Flipper Control (ปรับเล่มพาสปอร์ตให้ดูง่าย) */}
+        <div className="mt-1 bg-[#f2e7d1] rounded-full p-1 flex items-center justify-between shadow-xs border border-[#d5c3b6]/60">
           <button
             type="button"
             onClick={handlePrevPage}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#fff8f0] text-[#6f4315] shadow-sm active:scale-95 transition-all hover:bg-white cursor-pointer"
+            disabled={activeSpread === '01-02'}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[#6f4315] shadow-xs transition-all cursor-pointer ${
+              activeSpread === '01-02'
+                ? 'opacity-40 cursor-not-allowed bg-transparent'
+                : 'bg-[#fff8f0] hover:bg-white active:scale-95'
+            }`}
           >
             <span className="material-symbols-outlined text-[14px]">arrow_back_ios</span>
-            <span className="font-label-stamp text-[10px] font-bold">หน้า 04-05</span>
+            <span className="font-label-stamp text-[10px] font-bold">หน้าก่อนหน้า</span>
           </button>
 
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${activeSpread === '04-05' ? 'bg-[#6f4315]' : 'bg-[#d5c3b6]'}`} />
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  activeSpread === '01-02' ? 'bg-[#6f4315]' : 'bg-[#d5c3b6]'
+                }`}
+              />
               <span className="font-label-stamp text-[11px] text-[#6f4315] font-bold">
-                {activeSpread === '04-05' ? 'หน้า 04 – 05' : activeSpread === '06-07' ? 'หน้า 06 – 07' : 'หน้า 08 – 09'}
+                {activeSpread === '01-02'
+                  ? 'หน้า 01 – 02 (หน้าแรก)'
+                  : activeSpread === '03-04'
+                  ? 'หน้า 03 – 04'
+                  : activeSpread === '05-06'
+                  ? 'หน้า 05 – 06'
+                  : 'หน้า 07 – 08'}
               </span>
-              <span className={`w-1.5 h-1.5 rounded-full ${activeSpread === '08-09' ? 'bg-[#6f4315]' : 'bg-[#d5c3b6]'}`} />
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  activeSpread !== '01-02' ? 'bg-[#6f4315]' : 'bg-[#d5c3b6]'
+                }`}
+              />
             </div>
-            <span className="font-label-coord text-[9px] text-[#51443a]">จากทั้งหมด 24 หน้า</span>
+            <span className="font-label-coord text-[9px] text-[#51443a]">
+              {activeSpread === '01-02' ? 'หน้าข้อมูลส่วนตัว & ตราแรก' : 'หน้าตราประทับจากการปักหมุด'}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={handleNextPage}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#fff8f0] text-[#6f4315] shadow-sm active:scale-95 transition-all hover:bg-white cursor-pointer"
+            disabled={activeSpread === '07-08'}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[#6f4315] shadow-xs transition-all cursor-pointer ${
+              activeSpread === '07-08'
+                ? 'opacity-40 cursor-not-allowed bg-transparent'
+                : 'bg-[#fff8f0] hover:bg-white active:scale-95'
+            }`}
           >
-            <span className="font-label-stamp text-[10px] font-bold">หน้า 08-09</span>
+            <span className="font-label-stamp text-[10px] font-bold">หน้าถัดไป</span>
             <span className="material-symbols-outlined text-[14px]">arrow_forward_ios</span>
           </button>
+        </div>
+
+        {/* Page Tab Selector Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {[
+            { id: '01-02' as const, label: 'หน้า 01-02 (ข้อมูลส่วนตัว)' },
+            { id: '03-04' as const, label: 'หน้า 03-04 (ตราประทับ)' },
+            { id: '05-06' as const, label: 'หน้า 05-06' },
+            { id: '07-08' as const, label: 'หน้า 07-08' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSpread(tab.id)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-title-md transition-all shrink-0 cursor-pointer ${
+                activeSpread === tab.id
+                  ? 'bg-[#6f4315] text-white font-bold shadow-xs'
+                  : 'bg-[#fdf3dc] text-[#51443a] hover:bg-[#ffdea5]/50 border border-[#d5c3b6]/50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Physical Passport Double-Spread Presentation */}
-      <div className="px-4 mt-2">
+      <div className="px-4 mt-1">
         {/* Leatherette Spine Frame */}
-        <div className="p-2 bg-gradient-to-b from-[#201b0e] via-[#353021] to-[#201b0e] rounded-xl shadow-[0_8px_24px_rgba(32,27,14,0.35)] relative overflow-hidden border border-[#d5c3b6]/30">
-          <div className="flex flex-col gap-2 rounded-lg overflow-hidden">
-            {/* ================= LEFT PAGE: หน้า 06 ================= */}
-            <div className="relative bg-[#faf5ea] rounded-t-lg p-3.5 shadow-[inset_0_2px_8px_rgba(111,67,21,0.08)] overflow-hidden">
-              {/* Guilloché & Security Watermark Vectors */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06] text-[#6f4315]">
-                <defs>
-                  <pattern id="guilloche-left" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-                    <path d="M0,20 Q10,0 20,20 T40,20" fill="none" stroke="currentColor" strokeWidth="0.5" />
-                    <path d="M20,0 Q30,20 20,40 T20,80" fill="none" stroke="currentColor" strokeWidth="0.5" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#guilloche-left)" />
-                <path d="M20 70 Q 60 40, 110 50 T 180 80 T 260 40 T 340 70" fill="none" stroke="currentColor" strokeWidth="0.8" />
-              </svg>
+        <div className="p-2 sm:p-3 bg-gradient-to-b from-[#201b0e] via-[#353021] to-[#201b0e] rounded-2xl shadow-xl relative overflow-hidden border border-[#d5c3b6]/40">
+          <div className="flex flex-col gap-2 rounded-xl overflow-hidden">
 
-              {/* Archival Header Ribbon */}
-              <div className="flex items-center justify-between relative z-10 pb-2 border-b border-[#ece2cc]">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-label-coord text-[9px] text-[#837469] tracking-wider uppercase font-bold">
-                    IMMIGRATION • VISAS
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-[#d5c3b6]" />
-                  <span className="font-label-stamp text-[9px] text-[#644807] font-bold">
-                    ENTRIES / SORTIES
-                  </span>
-                </div>
-                <span className="font-headline-sm text-[13px] text-[#6f4315] font-bold">06</span>
-              </div>
+            {/* ========================================================================= */}
+            {/* SPREAD 01-02: เริ่มต้นที่ หน้า 1 (Official Explorer Identity & Bio Page) */}
+            {/* ========================================================================= */}
+            {activeSpread === '01-02' && (
+              <>
+                {/* ================= PAGE 01: หน้าข้อมูลประจำตัวนักสำรวจ ================= */}
+                <div className="relative bg-[#faf5ea] rounded-t-xl p-4 shadow-[inset_0_2px_8px_rgba(111,67,21,0.08)] overflow-hidden border-b border-[#ece2cc]">
+                  {/* Guilloché & Security Watermark Vectors */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.05] text-[#6f4315]">
+                    <defs>
+                      <pattern id="guilloche-p1" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
+                        <path d="M0,20 Q10,0 20,20 T40,20" fill="none" stroke="currentColor" strokeWidth="0.5" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#guilloche-p1)" />
+                  </svg>
 
-              {/* Stamped Visas Cluster (Left Page) */}
-              <div className="grid grid-cols-2 gap-2.5 relative z-10 mt-2">
-                {/* Stamp 1: Narita */}
-                {stamps[0] && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStamp(stamps[0])}
-                    className="p-2.5 rounded-lg bg-[#faf0dc]/60 text-left cursor-pointer transform -rotate-2 hover:rotate-0 hover:scale-[1.02] active:scale-95 transition-all shadow-sm border border-[#ba1a1a]/30"
-                  >
-                    <div className="w-full aspect-[4/3] rounded border-2 border-dashed border-[#ba1a1a]/70 flex flex-col items-center justify-center p-1.5 relative overflow-hidden bg-[#ba1a1a]/[0.03]">
-                      <svg className="absolute inset-0 w-full h-full text-[#ba1a1a]" fill="none" viewBox="0 0 120 90">
-                        <polygon points="60,4 114,24 114,66 60,86 6,66 6,24" stroke="currentColor" strokeWidth="2" strokeDasharray="3 1" opacity="0.85" />
-                      </svg>
-                      <div className="flex items-center gap-1 text-[#ba1a1a] opacity-90">
-                        <span className="material-symbols-outlined text-[13px]">flight_land</span>
-                        <span className="font-label-stamp text-[9px] font-bold tracking-widest">NARITA</span>
-                      </div>
-                      <span className="font-label-stamp text-[10px] text-[#ba1a1a] font-bold tracking-wider my-0.5">
-                        {stamps[0].date}
-                      </span>
-                      <span className="font-label-coord text-[8px] text-[#ba1a1a] uppercase font-semibold">
-                        ADMITTED • 90D
-                      </span>
-                      <div className="absolute -bottom-2 -right-2 text-[28px] text-[#ba1a1a]/10 font-bold select-none">
-                        JPN
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 px-0.5">
-                      <span className="font-label-stamp text-[8px] text-[#6f4315] font-semibold">TOKYO / NRT</span>
-                      <span className="material-symbols-outlined text-[12px] text-[#ba1a1a]">touch_app</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Stamp 2: France */}
-                {stamps[1] && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStamp(stamps[1])}
-                    className="p-2.5 rounded-lg bg-[#eef3fb]/60 text-left cursor-pointer transform rotate-3 hover:rotate-0 hover:scale-[1.02] active:scale-95 transition-all shadow-sm border border-[#465f88]/30"
-                  >
-                    <div className="w-full aspect-[4/3] rounded border border-[#001b3d]/60 flex flex-col items-center justify-center p-1.5 relative overflow-hidden bg-[#465f88]/[0.04]">
-                      <span className="font-label-stamp text-[8px] text-[#465f88] tracking-widest font-bold">
-                        FRANCE • CDG
-                      </span>
-                      <div className="flex items-center gap-1 my-0.5">
-                        <span className="material-symbols-outlined text-[11px] text-[#465f88]">flight</span>
-                        <span className="font-label-stamp text-[10px] text-[#001b3d] font-bold tracking-wider">
-                          {stamps[1].date}
-                        </span>
-                      </div>
-                      <span className="font-label-coord text-[7px] text-[#465f88] tracking-widest uppercase font-semibold">
-                        POLICE AUX FRONTIERES
-                      </span>
-                      <span className="font-label-coord text-[7px] text-[#465f88]/70">SCHENGEN • F-082</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 px-0.5">
-                      <span className="font-label-stamp text-[8px] text-[#465f88] font-semibold">PARIS / CDG</span>
-                      <span className="material-symbols-outlined text-[12px] text-[#465f88]">touch_app</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Stamp 3: Cairo Immigration (Spans 2 columns) */}
-                {stamps[2] && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStamp(stamps[2])}
-                    className="col-span-2 p-2.5 rounded-lg bg-[#fdf3dc]/60 text-left cursor-pointer transform -rotate-1 hover:rotate-0 hover:scale-[1.01] active:scale-95 transition-all shadow-sm border border-[#7f601f]/30"
-                  >
-                    <div className="w-full py-2 rounded-full border-2 border-[#7f601f]/70 flex items-center justify-between px-3 relative bg-[#ffdea5]/[0.08]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#7f601f]/15 flex items-center justify-center text-[#644807]">
-                          <span className="material-symbols-outlined text-[16px]">account_balance</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="font-label-stamp text-[9px] sm:text-[10px] text-[#644807] font-bold tracking-wider">
-                            CAIRO IMMIGRATION ENTRY
-                          </span>
-                          <span className="font-label-coord text-[8px] text-[#7f601f]">
-                            ARAB REPUBLIC OF EGYPT • {stamps[2].date}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-label-stamp text-[8px] text-[#644807] font-bold bg-[#ffdea5] px-1.5 py-0.5 rounded">
-                          AUTHENTIC
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Center Gutter Folding Line */}
-            <div className="h-2 bg-gradient-to-r from-[#201b0e]/30 via-[#201b0e]/70 to-[#201b0e]/30 flex items-center justify-center">
-              <div className="w-32 h-[1px] bg-[#f9ba82]/40" />
-            </div>
-
-            {/* ================= RIGHT PAGE: หน้า 07 ================= */}
-            <div className="relative bg-[#faf5ea] rounded-b-lg p-3.5 shadow-[inset_0_-2px_8px_rgba(111,67,21,0.08)] overflow-hidden">
-              <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.06] text-[#6f4315]">
-                <defs>
-                  <pattern id="guilloche-right" width="30" height="30" patternUnits="userSpaceOnUse">
-                    <circle cx="15" cy="15" r="14" fill="none" stroke="currentColor" strokeWidth="0.5" />
-                    <circle cx="15" cy="15" r="7" fill="none" stroke="currentColor" strokeWidth="0.3" strokeDasharray="1,2" />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#guilloche-right)" />
-              </svg>
-
-              <div className="flex items-center justify-between relative z-10 pb-2 border-b border-[#ece2cc]">
-                <span className="font-headline-sm text-[13px] text-[#6f4315] font-bold">07</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-label-coord text-[9px] text-[#837469] tracking-wider uppercase font-bold">
-                    VALIDATIONS • SEALS
-                  </span>
-                  <span className="w-1 h-1 rounded-full bg-[#d5c3b6]" />
-                  <span className="font-label-stamp text-[9px] text-[#644807] font-bold">
-                    VISAS • STAMPS
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 relative z-10 mt-2">
-                {/* Stamp 4: Reykjavik */}
-                {stamps[3] && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStamp(stamps[3])}
-                    className="p-2.5 rounded-lg bg-[#eaf3f5]/60 text-left cursor-pointer transform rotate-2 hover:rotate-0 hover:scale-[1.02] active:scale-95 transition-all shadow-sm border border-[#2e476f]/30"
-                  >
-                    <div className="w-full aspect-[4/3] rounded-full border-2 border-double border-[#2e476f] flex flex-col items-center justify-center p-1 relative overflow-hidden bg-[#d6e3ff]/[0.08]">
-                      <span className="material-symbols-outlined text-[13px] text-[#2e476f]">ac_unit</span>
-                      <span className="font-label-stamp text-[8px] text-[#001b3d] font-bold tracking-wider">
-                        REYKJAVIK
-                      </span>
-                      <span className="font-label-coord text-[7px] text-[#2e476f] uppercase font-semibold">
-                        ARCTIC 2024
-                      </span>
-                      <span className="font-label-stamp text-[9px] text-[#2e476f] font-bold mt-0.5">
-                        {stamps[3].date}
+                  {/* Header of Page 1 */}
+                  <div className="flex items-center justify-between relative z-10 pb-2 border-b border-[#d5c3b6]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">✦</span>
+                      <span className="font-label-coord text-[9px] text-[#6f4315] tracking-widest uppercase font-bold">
+                        ราชอาณาจักรแห่งการสำรวจ • KINGDOM OF WANDER
                       </span>
                     </div>
-                    <div className="flex items-center justify-between mt-1 px-0.5">
-                      <span className="font-label-stamp text-[8px] text-[#2e476f] font-semibold">KEFLAVIK</span>
-                      <span className="material-symbols-outlined text-[12px] text-[#2e476f]">touch_app</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Stamp 5: Marrakech */}
-                {stamps[4] && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStamp(stamps[4])}
-                    className="p-2.5 rounded-lg bg-[#fcefee]/60 text-left cursor-pointer transform -rotate-3 hover:rotate-0 hover:scale-[1.02] active:scale-95 transition-all shadow-sm border border-[#ba1a1a]/30"
-                  >
-                    <div className="w-full aspect-[4/3] rounded border border-[#ba1a1a]/60 flex flex-col items-center justify-center p-1 relative overflow-hidden bg-[#ba1a1a]/[0.03]">
-                      <svg className="absolute inset-0 w-full h-full text-[#ba1a1a]/20" fill="currentColor" viewBox="0 0 100 80">
-                        <polygon points="50,5 62,28 88,28 68,44 76,69 50,54 24,69 32,44 12,28 38,28" />
-                      </svg>
-                      <span className="font-label-stamp text-[8px] text-[#ba1a1a] font-bold tracking-widest relative z-10">
-                        MARRAKECH
-                      </span>
-                      <span className="font-label-stamp text-[10px] text-[#93000a] font-bold tracking-wider relative z-10 my-0.5">
-                        {stamps[4].date}
-                      </span>
-                      <span className="font-label-coord text-[7px] text-[#ba1a1a] uppercase relative z-10 font-semibold">
-                        ROYAL PERMIT • SOUK
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 px-0.5">
-                      <span className="font-label-stamp text-[8px] text-[#93000a] font-semibold">MENARA / RAK</span>
-                      <span className="material-symbols-outlined text-[12px] text-[#ba1a1a]">touch_app</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Slot 6: Empty Interactive Slot */}
-                <button
-                  type="button"
-                  onClick={onOpenGlobe}
-                  className="col-span-2 group relative p-3 rounded-lg bg-[#fdf3dc]/80 text-center cursor-pointer hover:bg-[#f7edd7] transition-all active:scale-[0.98] shadow-sm border border-dashed border-[#837469]/50 hover:border-[#6f4315]"
-                >
-                  <div className="w-full py-2.5 flex flex-col items-center justify-center gap-1">
-                    <div className="w-7 h-7 rounded-full bg-[#ece2cc] flex items-center justify-center text-[#6f4315] group-hover:bg-[#6f4315] group-hover:text-white transition-colors">
-                      <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
-                    </div>
-                    <span className="font-title-md text-[13px] text-[#6f4315] font-semibold">
-                      + ปักหมุดประเทศใหม่เพื่อรับตราประทับ
-                    </span>
-                    <span className="font-label-coord text-[9px] text-[#51443a] uppercase tracking-wider">
-                      AVAILABLE VISA SPACE • PAGE 07
+                    <span className="font-headline-sm text-xs text-[#6f4315] font-bold bg-[#fdf3dc] px-1.5 py-0.5 rounded border border-[#d5c3b6]">
+                      หน้า 01
                     </span>
                   </div>
-                </button>
-              </div>
-            </div>
-          </div>
 
-          {/* Machine Readable Zone (MRZ) Strip */}
-          <div className="mt-2 px-2 py-1.5 bg-[#1b170c] rounded text-[8px] font-label-coord text-[#d6e3ff] tracking-widest select-none overflow-hidden text-center opacity-90 border border-white/10 uppercase">
-            P&lt;THA{userProfile?.username?.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'WANDERER'}&lt;&lt;{userProfile?.fullName?.toUpperCase().replace(/[^A-Z0-9]/g, '') || 'SOMCHAI'}&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br />
-            {userProfile?.docId?.replace(/[^A-Z0-9]/g, '') || '892041'}&lt;3THA9205124M3010156&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;02
+                  {/* Explorer Bio Card Section */}
+                  <div className="relative z-10 mt-3 flex flex-col sm:flex-row gap-3 items-center sm:items-start bg-white/70 p-3 rounded-xl border border-[#d5c3b6]/80 shadow-2xs">
+                    {/* Photo Box with Archival Watermark */}
+                    <div className="relative w-24 h-28 rounded-lg overflow-hidden bg-[#fdf3dc] border-2 border-[#6f4315] shrink-0 shadow-sm flex flex-col items-center justify-center p-1">
+                      <img
+                        src={avatarUrl}
+                        alt={fullName}
+                        className="w-full h-full object-cover rounded"
+                      />
+                      <div className="absolute inset-0 border border-white/40 pointer-events-none" />
+                      <div className="absolute bottom-1 right-1 bg-[#6f4315]/80 text-white text-[7px] font-label-coord px-1 rounded font-bold">
+                        OFFICIAL
+                      </div>
+                    </div>
+
+                    {/* Passport Data Table */}
+                    <div className="flex-1 w-full space-y-1.5 text-xs">
+                      <div className="grid grid-cols-2 gap-2 pb-1.5 border-b border-[#ece2cc]">
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            เลขที่หนังสือเดินทาง / PASSPORT NO.
+                          </span>
+                          <span className="font-headline-sm text-sm text-[#ba1a1a] font-bold">
+                            {docId}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            สถานะการสำรวจ / STATUS
+                          </span>
+                          <span className="font-label-stamp text-[9px] text-[#6f4315] font-bold bg-[#ffdea5] px-1.5 py-0.5 rounded inline-block">
+                            {titleRank}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            ชื่อ-นามสกุล / FULL NAME
+                          </span>
+                          <span className="font-headline-sm text-xs text-[#201b0e] font-bold block truncate">
+                            {fullName}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            ชื่อผู้ใช้ / USERNAME
+                          </span>
+                          <span className="font-label-coord text-xs text-[#465f88] font-bold block truncate">
+                            @{username}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#ece2cc]">
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            วันที่ออกหนังสือ / DATE OF ISSUE
+                          </span>
+                          <span className="font-label-stamp text-[10px] text-[#51443a] font-semibold">
+                            {registeredDate}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                            สถิติตราประทับ / STAMPS RECORDED
+                          </span>
+                          <span className="font-headline-sm text-[11px] text-[#6f4315] font-bold">
+                            {effectiveStamps.length} ตรา (จุดหมายที่ปักหมุด)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Machine Readable Zone (MRZ Code) */}
+                  <div className="relative z-10 mt-2.5 p-2 bg-[#f4ece0] rounded-lg border border-[#d5c3b6]/60 font-mono text-[9px] text-[#353021] tracking-widest leading-tight overflow-x-auto select-none">
+                    <p className="whitespace-nowrap">P&lt;WND&lt;&lt;{fullName.toUpperCase().replace(/\s+/g, '&lt;')}&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</p>
+                    <p className="whitespace-nowrap">{docId}&lt;0THA0000000M2412318&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;01</p>
+                  </div>
+                </div>
+
+                {/* Center Binding Line */}
+                <div className="h-2 bg-gradient-to-r from-[#201b0e]/30 via-[#201b0e]/70 to-[#201b0e]/30 flex items-center justify-center">
+                  <div className="w-32 h-[1px] bg-[#f9ba82]/40" />
+                </div>
+
+                {/* ================= PAGE 02: หน้าตราประทับแรก (Visas & Entry Permits) ================= */}
+                <div className="relative bg-[#faf5ea] rounded-b-xl p-4 shadow-[inset_0_-2px_8px_rgba(111,67,21,0.08)] overflow-hidden">
+                  <div className="flex items-center justify-between relative z-10 pb-2 border-b border-[#ece2cc]">
+                    <span className="font-headline-sm text-xs text-[#6f4315] font-bold bg-[#fdf3dc] px-1.5 py-0.5 rounded border border-[#d5c3b6]">
+                      หน้า 02
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-label-coord text-[9px] text-[#837469] tracking-wider uppercase font-bold">
+                        ตราประทับผ่านแดนจากการปักหมุด
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-[#d5c3b6]" />
+                      <span className="font-label-stamp text-[9px] text-[#644807] font-bold">
+                        VISAS / ENTRIES
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Stamp slots on Page 2 (Linked directly from user pins) */}
+                  <div className="relative z-10 mt-3">
+                    {effectiveStamps.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {getStampsForPage(2).map((st) => (
+                          <div
+                            key={st.id}
+                            onClick={() => setSelectedStamp(st)}
+                            className="p-3 rounded-xl bg-[#fff8f0] text-left cursor-pointer border-2 border-dashed border-[#ba1a1a]/70 hover:border-[#ba1a1a] shadow-xs hover:shadow-md transition-all active:scale-98 group"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-label-coord text-[8px] bg-[#ba1a1a] text-white px-1.5 py-0.2 rounded font-bold">
+                                {st.code}
+                              </span>
+                              <span className="font-label-stamp text-[9px] text-[#ba1a1a] font-bold">
+                                {st.date}
+                              </span>
+                            </div>
+                            <h4 className="font-headline-sm text-xs text-[#201b0e] font-bold truncate">
+                              {st.country}
+                            </h4>
+                            <p className="font-label-coord text-[9px] text-[#465f88] font-bold mt-0.5">
+                              {st.coords}
+                            </p>
+                            <div className="mt-2 flex items-center justify-between pt-1 border-t border-[#ece2cc] text-[9px]">
+                              <span className="text-[#6f4315] font-semibold">{st.admitted}</span>
+                              <span className="text-[#ba1a1a] group-hover:underline flex items-center gap-0.5 font-bold">
+                                <span>ดูข้อมูล</span>
+                                <span className="material-symbols-outlined text-[11px]">arrow_forward</span>
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* Empty State when stamps = 0 on first use */
+                      <div className="py-8 px-4 text-center rounded-xl bg-white/80 border border-dashed border-[#d5c3b6] space-y-2.5">
+                        <div className="w-12 h-12 mx-auto rounded-full bg-[#fdf3dc] text-[#6f4315] flex items-center justify-center shadow-xs">
+                          <span className="material-symbols-outlined text-[26px]">approval</span>
+                        </div>
+                        <div>
+                          <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold">
+                            ยังไม่มีตราประทับในเล่ม (0 ตรา)
+                          </h3>
+                          <p className="font-body-sm text-xs text-[#51443a] max-w-sm mx-auto mt-1 leading-relaxed">
+                            ตราประทับในพาสปอร์ตจะอ้างอิงและบันทึกอัตโนมัติจากการกดปักหมุดสถานที่ของคุณบนลูกโลก 3D
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={onOpenGlobe}
+                          className="px-4 py-2 rounded-xl bg-[#6f4315] text-white text-xs font-title-md hover:bg-[#8b5a2b] shadow-xs inline-flex items-center gap-1.5 cursor-pointer font-bold active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">add_location_alt</span>
+                          <span>+ ไปที่ลูกโลกเพื่อปักหมุดแรก</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ========================================================================= */}
+            {/* SPREADS 03-04, 05-06, 07-08: ตราประทับหน้าถัดไป */}
+            {/* ========================================================================= */}
+            {activeSpread !== '01-02' && (
+              <div className="relative bg-[#faf5ea] rounded-xl p-4 shadow-inner min-h-[360px]">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#ece2cc]">
+                  <span className="font-headline-sm text-xs text-[#6f4315] font-bold bg-[#fdf3dc] px-2 py-0.5 rounded border border-[#d5c3b6]">
+                    {activeSpread === '03-04' ? 'หน้า 03 – 04' : activeSpread === '05-06' ? 'หน้า 05 – 06' : 'หน้า 07 – 08'}
+                  </span>
+                  <span className="font-label-stamp text-[10px] text-[#644807] font-bold">
+                    EXPEDITION VISA STAMPS • RECORDED WAYPOINTS
+                  </span>
+                </div>
+
+                {effectiveStamps.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {effectiveStamps
+                      .slice(
+                        activeSpread === '03-04' ? 2 : activeSpread === '05-06' ? 6 : 10,
+                        activeSpread === '03-04' ? 6 : activeSpread === '05-06' ? 10 : 14
+                      )
+                      .map((st) => (
+                        <div
+                          key={st.id}
+                          onClick={() => setSelectedStamp(st)}
+                          className="p-3 rounded-xl bg-[#fff8f0] text-left cursor-pointer border-2 border-dashed border-[#465f88]/70 hover:border-[#465f88] shadow-xs hover:shadow-md transition-all active:scale-98"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-label-coord text-[8px] bg-[#465f88] text-white px-1.5 py-0.2 rounded font-bold">
+                              {st.code}
+                            </span>
+                            <span className="font-label-stamp text-[9px] text-[#465f88] font-bold">
+                              {st.date}
+                            </span>
+                          </div>
+                          <h4 className="font-headline-sm text-xs text-[#201b0e] font-bold truncate">
+                            {st.country}
+                          </h4>
+                          <p className="font-label-coord text-[9px] text-[#465f88] font-bold mt-0.5">
+                            {st.coords}
+                          </p>
+                          <span className="font-label-coord text-[8px] text-[#837469] block mt-1">
+                            {st.type}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-xs text-[#837469] space-y-2">
+                    <p>ยังไม่มีตราประทับในหน้านี้ (0 ตรา)</p>
+                    <button
+                      type="button"
+                      onClick={onOpenGlobe}
+                      className="px-3 py-1.5 rounded-lg bg-[#6f4315] text-white text-[11px] font-semibold"
+                    >
+                      + ปักหมุดบนลูกโลก
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Interactive Stamp Inspector Card */}
-      <div className="px-4 mt-4">
-        {selectedStamp ? (
-          <div className="bg-white rounded-xl p-4 shadow-md border border-[#d5c3b6]/70 transition-all">
-            <div className="flex items-center justify-between pb-2 border-b border-[#ece2cc]">
+      {/* Selected Stamp Details Card */}
+      {selectedStamp && (
+        <div className="px-4 mt-3 hidden">
+          <div
+            className="hidden bg-white rounded-xl p-3.5 shadow-sm border border-[#d5c3b6] space-y-2 animate-in fade-in"
+            style={{ display: 'none' }}
+          >
+            <div className="flex items-center justify-between pb-1.5 border-b border-[#ece2cc]">
               <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-[#ffdcc1] flex items-center justify-center text-[#2e1500]">
-                  <span className="material-symbols-outlined text-[18px]">
-                    {selectedStamp.icon || 'verified'}
-                  </span>
+                <span className="material-symbols-outlined text-[#6f4315] text-[18px]">verified</span>
+                <span className="font-headline-sm text-xs text-[#6f4315] font-bold">
+                  ข้อมูลตราประทับ: {selectedStamp.country}
                 </span>
-                <div>
-                  <span className="font-label-coord text-[10px] text-[#465f88] uppercase tracking-wider font-bold">
-                    แว่นขยายตรวจสอบตราประทับ
+              </div>
+              <span className="font-label-coord text-[9px] text-[#465f88] font-bold bg-[#fdf3dc] px-2 py-0.5 rounded border border-[#d5c3b6]">
+                {selectedStamp.coords}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">สถานที่ / ด่านตรวจ</span>
+                <span className="text-[#201b0e] font-semibold">{selectedStamp.location}</span>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold block">
+                    วันที่บันทึกพิกัด
                   </span>
-                  <h2 className="font-headline-sm text-base text-[#6f4315] font-bold -mt-0.5">
-                    {selectedStamp.country}
-                  </h2>
+                  {!isEditingDate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempDate(selectedStamp.date);
+                        setIsEditingDate(true);
+                      }}
+                      className="font-label-stamp text-[10px] text-[#6f4315] hover:text-[#8b5a2b] bg-[#fdf3dc] hover:bg-[#ffeed3] border border-[#d5c3b6] px-2 py-0.5 rounded-md flex items-center gap-1 font-bold cursor-pointer transition-all shadow-2xs active:scale-95"
+                      title="แก้ไขวันที่บันทึกพิกัด"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">edit_calendar</span>
+                      <span>แก้ไขวันที่</span>
+                    </button>
+                  )}
                 </div>
+
+                {!isEditingDate ? (
+                  <span
+                    onClick={() => {
+                      setTempDate(selectedStamp.date);
+                      setIsEditingDate(true);
+                    }}
+                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#fff8ee] hover:bg-[#ffeed3] border border-[#d5c3b6] hover:border-[#6f4315] text-[#201b0e] cursor-pointer transition-all shadow-2xs group active:scale-95"
+                    title="คลิกเพื่อแก้ไขวันที่บันทึกพิกัด"
+                  >
+                    <span className="text-xs font-bold text-[#51443a] group-hover:text-[#6f4315]">
+                      {selectedStamp.date}
+                    </span>
+                    <span className="material-symbols-outlined text-[14px] text-[#837469] group-hover:text-[#6f4315] transition-transform group-hover:scale-110">
+                      edit
+                    </span>
+                  </span>
+                ) : (
+                  <div className="p-2.5 bg-[#fdfaf5] rounded-xl border border-[#6f4315]/50 shadow-sm space-y-2 mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={tempDate}
+                        onChange={(e) => setTempDate(e.target.value)}
+                        placeholder="เช่น 14 ต.ค. 2026 หรือ 2026-10-14"
+                        className="flex-1 px-2.5 py-1 text-xs bg-white rounded-lg border border-[#6f4315] text-[#201b0e] font-semibold focus:outline-none shadow-inner"
+                        autoFocus
+                      />
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const d = new Date(e.target.value);
+                            const thaiMonths = [
+                              'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                              'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                            ];
+                            const formatted = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear()}`;
+                            setTempDate(formatted);
+                          }
+                        }}
+                        className="w-8 h-7 px-1 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#6f4315] cursor-pointer"
+                        title="เลือกจากปฏิทิน"
+                      />
+                    </div>
+
+                    {/* Quick Date Presets */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[9px] text-[#837469] font-medium mr-0.5">ลัด:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          const thaiMonths = [
+                            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                          ];
+                          setTempDate(`${now.getDate()} ${thaiMonths[now.getMonth()]} ${now.getFullYear()}`);
+                        }}
+                        className="px-1.5 py-0.5 text-[9px] rounded bg-[#ece2cc]/70 hover:bg-[#d5c3b6] text-[#51443a] font-semibold cursor-pointer"
+                      >
+                        วันนี้
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const yesterday = new Date();
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          const thaiMonths = [
+                            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                          ];
+                          setTempDate(`${yesterday.getDate()} ${thaiMonths[yesterday.getMonth()]} ${yesterday.getFullYear()}`);
+                        }}
+                        className="px-1.5 py-0.5 text-[9px] rounded bg-[#ece2cc]/70 hover:bg-[#d5c3b6] text-[#51443a] font-semibold cursor-pointer"
+                      >
+                        เมื่อวาน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const past = new Date();
+                          past.setDate(past.getDate() - 7);
+                          const thaiMonths = [
+                            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                          ];
+                          setTempDate(`${past.getDate()} ${thaiMonths[past.getMonth()]} ${past.getFullYear()}`);
+                        }}
+                        className="px-1.5 py-0.5 text-[9px] rounded bg-[#ece2cc]/70 hover:bg-[#d5c3b6] text-[#51443a] font-semibold cursor-pointer"
+                      >
+                        7 วันที่แล้ว
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-[#ece2cc]">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingDate(false)}
+                        className="px-2.5 py-1 rounded-lg text-xs bg-[#ece2cc] hover:bg-[#d5c3b6] text-[#51443a] font-medium cursor-pointer"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDate(selectedStamp.id, tempDate)}
+                        className="px-3 py-1 rounded-lg text-xs bg-[#6f4315] hover:bg-[#8b5a2b] text-white font-bold shadow-xs cursor-pointer flex items-center gap-1 active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">check</span>
+                        <span>บันทึกวันที่</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <span className="font-label-stamp text-[10px] text-[#644807] bg-[#fdf3dc] px-2 py-1 rounded font-bold border border-[#d5c3b6]/50">
-                {selectedStamp.date}
-              </span>
             </div>
 
-            <div className="mt-2.5 grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-[#fdf3dc] border border-[#d5c3b6]/40">
-              <div className="flex flex-col">
-                <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold">
-                  สถานที่ / ด่านตรวจคนเข้าเมือง
-                </span>
-                <span className="font-title-md text-[12px] text-[#201b0e] font-semibold truncate">
-                  {selectedStamp.location}
-                </span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-label-coord text-[8px] text-[#837469] uppercase font-bold">
-                  พิกัดทางภูมิศาสตร์
-                </span>
-                <span className="font-label-coord text-[11px] text-[#465f88] font-bold">
-                  {selectedStamp.coords}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2">
-              <span className="font-label-coord text-[9px] text-[#837469] uppercase tracking-wider font-bold">
-                ประเภทการเข้าเมือง:
-              </span>
-              <span className="font-label-stamp text-[10px] text-[#6f4315] font-bold">
-                {selectedStamp.type}
-              </span>
-            </div>
-
-            <div className="mt-2 p-2.5 rounded-lg bg-[#f2e7d1]/60 border border-[#d5c3b6]/40">
-              <div className="flex items-center gap-1 mb-1">
-                <span className="material-symbols-outlined text-[14px] text-[#644807]">edit_note</span>
-                <span className="font-label-stamp text-[9px] text-[#644807] uppercase tracking-wider font-bold">
-                  บันทึกสมุดเดินทาง
-                </span>
-              </div>
-              <p className="font-body-sm text-[12px] text-[#201b0e] italic leading-relaxed">
-                “{selectedStamp.note}”
-              </p>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between pt-1">
-              <span className="font-label-coord text-[9px] text-[#51443a] flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]">touch_app</span>
-                แตะตราประทับอื่นในสมุดเพื่อสลับดูข้อมูล
-              </span>
-              <button
-                type="button"
-                onClick={() => onToast(`คัดลอกข้อมูลตราประทับ ${selectedStamp.country} เรียบร้อย`)}
-                className="font-label-stamp text-[10px] text-[#6f4315] flex items-center gap-1 hover:underline font-bold"
-              >
-                <span className="material-symbols-outlined text-[14px]">share</span>
-                แชร์ตรานี้
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-[#d5c3b6]/70 text-center space-y-2">
-            <span className="material-symbols-outlined text-[#6f4315] text-[32px]">menu_book</span>
-            <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold">
-              หนังสือเดินทางพร้อมรับตราประทับแรก
-            </h3>
-            <p className="font-body-sm text-xs text-[#51443a]">
-              ยังไม่มีตราประทับในสมุดพาสปอร์ต ไปที่แท็บลูกโลกเพื่อปักหมุดเมืองแรก หรือแตะปุ่มด้านล่าง
-            </p>
-            <div className="pt-2 flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={handleAutoStamp}
-                className="px-4 py-2 rounded-lg bg-[#6f4315] text-white text-xs font-title-md hover:bg-[#8b5a2b] shadow-xs cursor-pointer"
-              >
-                + ประทับตราแรกทันที
-              </button>
+            <div className="pt-2 flex items-center justify-between border-t border-[#ece2cc]">
               <button
                 type="button"
                 onClick={onOpenGlobe}
-                className="px-4 py-2 rounded-lg bg-[#fff8f0] text-[#6f4315] border border-[#d5c3b6] text-xs font-title-md hover:bg-white cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-[#6f4315] text-white text-xs font-semibold hover:bg-[#8b5a2b] transition-colors flex items-center gap-1 cursor-pointer"
               >
-                เปิดดูลูกโลก
+                <span className="material-symbols-outlined text-[14px]">explore</span>
+                <span>หมุนลูกโลกไปยังพิกัดนี้</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStamp(null)}
+                className="text-xs text-[#837469] hover:text-[#201b0e] cursor-pointer"
+              >
+                ปิด
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Bottom Quick Actions Group */}
-      <div className="px-4 mt-3 flex flex-col gap-2">
+      {/* Bottom Actions */}
+      <div className="px-4 mt-3 flex flex-col sm:flex-row gap-2">
         <button
           type="button"
-          onClick={handleAutoStamp}
-          className="w-full py-3 px-4 rounded-xl bg-[#6f4315] text-white shadow-md flex items-center justify-between active:scale-[0.98] hover:bg-[#8b5a2b] transition-all cursor-pointer"
+          onClick={onOpenGlobe}
+          className="flex-1 py-2.5 px-4 rounded-xl bg-[#6f4315] text-white shadow-sm flex items-center justify-center gap-2 font-title-md text-xs font-bold hover:bg-[#8b5a2b] transition-all cursor-pointer active:scale-95"
         >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[#8b5a2b] flex items-center justify-center text-white">
-              <span className="material-symbols-outlined text-[20px]">approval</span>
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="font-title-md text-[14px] font-semibold leading-tight">
-                ประทับตราอัตโนมัติจากหมุดล่าสุด
-              </span>
-              <span className="font-label-coord text-[9px] text-[#ffdcc1] uppercase tracking-wider font-semibold">
-                พบ 2 จุดแวะพักที่ยังไม่ได้ลงตรา
-              </span>
-            </div>
-          </div>
-          <span className="material-symbols-outlined text-[#ffdcc1] text-[20px]">
-            arrow_forward
-          </span>
+          <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+          <span>ไปที่แผนที่ลูกโลกเพื่อปักหมุด</span>
         </button>
 
         <button
           type="button"
           onClick={() => setIsExportOpen(true)}
-          className="w-full py-2.5 px-4 rounded-xl bg-[#f2e7d1] text-[#6f4315] hover:bg-[#ece2cc] transition-colors flex items-center justify-center gap-2 active:scale-[0.98] border border-[#d5c3b6]/60 font-semibold cursor-pointer"
+          className="py-2.5 px-4 rounded-xl bg-[#f2e7d1] text-[#6f4315] hover:bg-[#ece2cc] transition-colors flex items-center justify-center gap-1.5 border border-[#d5c3b6]/60 font-semibold text-xs cursor-pointer active:scale-95"
         >
-          <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-          <span className="font-title-md text-[13px]">
-            ส่งออกสมุดพาสปอร์ต PDF (Full Folio)
-          </span>
+          <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+          <span>ส่งออก PDF</span>
         </button>
       </div>
 
@@ -528,7 +735,7 @@ export const PassportView: React.FC<PassportViewProps> = ({
       <ExportPassportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        stamps={stamps}
+        stamps={effectiveStamps}
       />
     </div>
   );

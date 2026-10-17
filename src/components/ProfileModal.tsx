@@ -53,6 +53,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [signupAvatarUrl, setSignupAvatarUrl] = useState(AVATAR_PRESETS[0].url);
   const [signupBio, setSignupBio] = useState('นักสำรวจหน้าใหม่ พร้อมออกเดินทางสร้างความทรงจำ');
 
+  // Reset confirmation with phone or email verification
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [resetAuthInput, setResetAuthInput] = useState('');
+  const [resetAuthError, setResetAuthError] = useState('');
+
   // Live Camera viewfinder state
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraTarget, setCameraTarget] = useState<'edit' | 'signup'>('edit');
@@ -90,6 +95,38 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       stopCamera();
     };
   }, []);
+
+  // ยืนยันการรีเซ็ตข้อมูลด้วยเบอร์โทรหรืออีเมล
+  const handleVerifyAndReset = () => {
+    const input = resetAuthInput.trim().toLowerCase();
+    if (!input) {
+      setResetAuthError('กรุณากรอกเบอร์โทรศัพท์ หรือ อีเมลเพื่อยืนยัน');
+      return;
+    }
+
+    const regEmail = (userProfile.email || '').trim().toLowerCase();
+    const regPhone = (userProfile.phoneNumber || '').replace(/\D/g, '');
+    const inputDigits = input.replace(/\D/g, '');
+    const regUsername = (userProfile.username || '').trim().toLowerCase();
+
+    // ตรวจสอบความถูกต้องกับข้อมูลในโปรไฟล์
+    const matchesEmail = regEmail && input === regEmail;
+    const matchesPhone = regPhone && inputDigits && (inputDigits === regPhone || regPhone.includes(inputDigits) || inputDigits.includes(regPhone));
+    const matchesUsername = regUsername && input === regUsername;
+
+    // กรณีโปรไฟล์ยังไม่มีอีเมลหรือเบอร์โทรศัพท์ ให้ผ่านได้หากกรอกข้อมูล
+    const canBypass = !regEmail && !regPhone;
+
+    if (matchesEmail || matchesPhone || matchesUsername || canBypass) {
+      onResetDataToZero();
+      setIsResetConfirmOpen(false);
+      setResetAuthInput('');
+      setResetAuthError('');
+      onToast('ยืนยันตัวตนสำเร็จ รีเซ็ตข้อมูลทั้งหมดเป็น 0 เรียบร้อยแล้ว');
+    } else {
+      setResetAuthError('เบอร์โทรศัพท์หรืออีเมลไม่ตรงกับข้อมูลในบัญชี กรุณาลองใหม่อีกครั้ง');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -460,13 +497,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onResetDataToZero();
-                        onToast('รีเซ็ตข้อมูลทั้งหมดเป็น 0 เรียบร้อยแล้ว');
+                        setIsResetConfirmOpen(true);
+                        setResetAuthInput('');
+                        setResetAuthError('');
                       }}
-                      className="text-[11px] text-[#ba1a1a] hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                      className="text-xs text-[#ba1a1a] hover:text-white bg-[#fff0f0] hover:bg-[#ba1a1a] border border-[#ba1a1a]/30 hover:border-[#ba1a1a] px-2.5 py-1 rounded-lg flex items-center gap-1.5 cursor-pointer font-semibold transition-all shadow-2xs active:scale-95"
+                      title="รีเซ็ตข้อมูลทั้งหมดเป็น 0 (ต้องยืนยันเบอร์โทรหรืออีเมล)"
                     >
-                      <span className="material-symbols-outlined text-[14px]">restart_alt</span>
-                      <span>รีเซ็ตข้อมูลทั้งหมดเป็น 0</span>
+                      <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                      <span className="font-medium">รีเซ็ตข้อมูลทั้งหมดเป็น 0</span>
                     </button>
 
                     <button
@@ -863,6 +902,81 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Reset Confirmation with Phone or Email Verification Modal (ถ้าต้องการรีเซ็ทข้อมูล ให้ยืนยันด้วย เบอร์โทร หรืออีเมล์ อีกครั้ง) */}
+      {isResetConfirmOpen && (
+        <div
+          onClick={() => setIsResetConfirmOpen(false)}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-white rounded-2xl p-5 shadow-2xl border border-[#d5c3b6] text-center space-y-3.5 animate-in zoom-in-95 duration-150"
+          >
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#fff0f0] text-[#ba1a1a] flex items-center justify-center shadow-xs">
+              <span className="material-symbols-outlined text-[24px]">restart_alt</span>
+            </div>
+
+            <div>
+              <h3 className="font-headline-sm text-base text-[#201b0e] font-bold">
+                ยืนยันการรีเซ็ตข้อมูลเป็น 0
+              </h3>
+              <p className="font-body-sm text-xs text-[#51443a] mt-1 leading-snug">
+                เพื่อความปลอดภัย กรุณากรอก <strong>เบอร์โทรศัพท์</strong> หรือ <strong>อีเมล</strong> ของคุณเพื่อยืนยันอีกครั้ง
+              </p>
+            </div>
+
+            <div className="text-left space-y-1.5">
+              <label className="font-label-coord text-[10px] text-[#837469] font-bold uppercase block">
+                เบอร์โทร หรือ อีเมลที่ลงทะเบียน
+              </label>
+              <input
+                type="text"
+                value={resetAuthInput}
+                onChange={(e) => {
+                  setResetAuthInput(e.target.value);
+                  setResetAuthError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleVerifyAndReset();
+                  }
+                }}
+                placeholder="เช่น 081-xxx-xxxx หรือ name@example.com"
+                className="w-full px-3 py-2 text-xs bg-white rounded-xl border border-[#d5c3b6] focus:border-[#ba1a1a] focus:ring-1 focus:ring-[#ba1a1a] text-[#201b0e] font-medium outline-none"
+                autoFocus
+              />
+              {resetAuthError && (
+                <p className="text-[11px] text-[#ba1a1a] font-semibold mt-1">
+                  ⚠️ {resetAuthError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-[#ece2cc]">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetConfirmOpen(false);
+                  setResetAuthInput('');
+                  setResetAuthError('');
+                }}
+                className="flex-1 py-2 px-3 rounded-xl bg-[#ece2cc] hover:bg-[#d5c3b6] text-[#51443a] text-xs font-title-md font-bold transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleVerifyAndReset}
+                className="flex-1 py-2 px-3 rounded-xl bg-[#ba1a1a] hover:bg-[#93000a] text-white text-xs font-title-md font-bold shadow-sm transition-colors cursor-pointer active:scale-95"
+              >
+                ยืนยันรีเซ็ต
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -15,11 +15,14 @@ import {
   searchLocalGazetteer,
   searchWorldwideGeocode,
   formatCoordinates,
+  getLocationPhoto,
 } from '../utils/worldLocations';
 
 interface GlobeViewProps {
   pins: GlobePin[];
   onAddPin: (pin: GlobePin) => void;
+  onUpdatePinDate?: (pinOrStampId: string, newDate: string) => void;
+  onDeletePin?: (pinId: string) => void;
   onNavigateTab: (tab: TabType) => void;
   onToast: (msg: string) => void;
 }
@@ -157,6 +160,8 @@ function createVintageExplorerMaterial(): THREE.MeshStandardMaterial {
 export const GlobeView: React.FC<GlobeViewProps> = ({
   pins,
   onAddPin,
+  onUpdatePinDate,
+  onDeletePin,
   onNavigateTab,
   onToast,
 }) => {
@@ -164,6 +169,9 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
 
   // Default selected pin
   const [selectedPin, setSelectedPin] = useState<GlobePin | null>(pins[0] || null);
+  const [isEditingPinDate, setIsEditingPinDate] = useState<boolean>(false);
+  const [editingPinDateText, setEditingPinDateText] = useState<string>('');
+  const [pinToDelete, setPinToDelete] = useState<GlobePin | null>(null);
 
   // Earth visual mode: 'satellite' = Day (Realistic), 'night' = Night (Realistic City Lights), 'sample' = Vintage Cartography
   const [earthMode, setEarthMode] = useState<EarthStyleMode>('satellite');
@@ -286,8 +294,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
       categoryTag: loc.category,
       isStamped: true,
       memoriesCount: 1,
-      imageUrl:
-        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&auto=format&fit=crop&q=80',
+      imageUrl: getLocationPhoto(loc.nameTh || loc.name, loc.countryTh || loc.country),
       status: 'VERIFIED',
       pinStyle: globalPinStyle,
       pinColor: globalPinColor,
@@ -297,6 +304,23 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
     setSelectedPin(newPin);
     setActiveTargetSpot(null);
     onToast(`ปักหมุดสำเร็จ: ${newPin.city}, ${newPin.country} พิกัด ${newPin.latLngDisplay}`);
+  };
+
+  // Delete pin request handler -> Opens confirmation dialog with Yes or No
+  const handleRequestDeletePin = (e: React.MouseEvent, pin: GlobePin) => {
+    e.stopPropagation();
+    setPinToDelete(pin);
+  };
+
+  const handleConfirmDeletePin = () => {
+    if (!pinToDelete) return;
+    onDeletePin?.(pinToDelete.id);
+    if (selectedPin && selectedPin.id === pinToDelete.id) {
+      const remaining = pins.filter((p) => p.id !== pinToDelete.id);
+      setSelectedPin(remaining[0] || null);
+    }
+    onToast(`ลบรายการหมุด "${pinToDelete.city}, ${pinToDelete.country}" สำเร็จ`);
+    setPinToDelete(null);
   };
 
   // Open Add Pin Modal with completely linked search data (เมื่อกดปักหมุด ให้ลิ้งค์ข้อมูลของการค้นหาต่างๆไปใส่ให้ครบถ้วน)
@@ -1278,10 +1302,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
             <div className="absolute bottom-3 inset-x-3 bg-white/94 backdrop-blur-xl rounded-xl p-2.5 shadow-2xl border border-white/60 flex items-center justify-between transition-all duration-300 z-10">
               <div className="flex items-center gap-2.5 min-w-0">
                 <img
-                  src={
-                    selectedPin.imageUrl ||
-                    'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=200&auto=format&fit=crop&q=80'
-                  }
+                  src={getLocationPhoto(selectedPin.city, selectedPin.country, selectedPin.imageUrl)}
                   alt={selectedPin.city}
                   className="w-12 h-12 rounded-lg object-cover shadow-sm border border-[#ece2cc] shrink-0"
                 />
@@ -1304,9 +1325,59 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                   <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold leading-tight truncate">
                     {selectedPin.city}, {selectedPin.country}
                   </h3>
-                  <p className="font-label-coord text-[9px] text-[#465f88] font-semibold mt-0.5 truncate">
-                    {selectedPin.date} • {selectedPin.latLngDisplay}
-                  </p>
+                  {isEditingPinDate ? (
+                    <div className="flex items-center gap-1 mt-1">
+                      <input
+                        type="text"
+                        value={editingPinDateText}
+                        onChange={(e) => setEditingPinDateText(e.target.value)}
+                        placeholder="เช่น 14 ต.ค. 2026"
+                        className="px-2 py-0.5 text-[10px] bg-white rounded border border-[#6f4315] text-[#201b0e] font-semibold focus:outline-none w-28"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const trimmed = editingPinDateText.trim();
+                          if (trimmed) {
+                            onUpdatePinDate?.(selectedPin.id, trimmed);
+                            setSelectedPin((prev) => (prev ? { ...prev, date: trimmed } : null));
+                            setIsEditingPinDate(false);
+                            onToast(`แก้ไขวันที่บันทึกพิกัดเป็น "${trimmed}" สำเร็จ`);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded text-[9px] bg-[#6f4315] hover:bg-[#8b5a2b] text-white font-bold cursor-pointer"
+                      >
+                        บันทึก
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingPinDate(false)}
+                        className="px-1.5 py-0.5 rounded text-[9px] bg-[#ece2cc] text-[#51443a] cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPinDateText(selectedPin.date);
+                          setIsEditingPinDate(true);
+                        }}
+                        className="font-label-coord text-[9px] text-[#6f4315] font-semibold inline-flex items-center gap-0.5 bg-[#fdf3dc] hover:bg-[#ffeed3] px-1.5 py-0.2 rounded border border-[#d5c3b6]/60 cursor-pointer transition-colors"
+                        title="คลิกเพื่อแก้ไขวันที่บันทึกพิกัด"
+                      >
+                        <span>{selectedPin.date}</span>
+                        <span className="material-symbols-outlined text-[10px]">edit</span>
+                      </button>
+                      <span className="text-[8px] text-[#837469]">•</span>
+                      <span className="font-label-coord text-[9px] text-[#465f88] font-semibold truncate">
+                        {selectedPin.latLngDisplay}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1322,6 +1393,15 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  onClick={(e) => handleRequestDeletePin(e, selectedPin)}
+                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#fff0f0] text-[#ba1a1a] hover:bg-[#ffe2e2] active:scale-95 transition-all border border-[#ba1a1a]/30 shadow-xs cursor-pointer"
+                  title="ลบหมุดนี้"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                  <span className="font-label-ui text-[9px] font-semibold">ลบหมุด</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSelectedPin(null)}
                   className="w-7 h-7 rounded-lg text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors"
                   title="ปิดการแสดงการ์ดหมุด"
@@ -1333,21 +1413,21 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           )}
         </div>
 
-        {/* Center Live Coordinates Gyro Indicator */}
-        <div className="mt-2.5 flex items-center justify-center">
+        {/* Center Live Coordinates Gyro Indicator (ปรับให้มีขนาดเล็ก เพื่อการมองเห็นที่ง่าย) */}
+        <div className="mt-1 flex items-center justify-center">
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="inline-flex items-center gap-2 bg-[#fdf3dc] hover:bg-[#f5e7c8] px-3.5 py-1 rounded-full border border-[#d5c3b6] shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-[#fdf3dc]/85 hover:bg-[#f5e7c8] px-2.5 py-0.5 rounded-full border border-[#d5c3b6]/80 shadow-2xs transition-all cursor-pointer hover:scale-105 active:scale-95"
             title="แตะเพื่อเปิดการตั้งค่า"
           >
-            <span className="text-xs">
+            <span className="text-[10px]">
               {earthMode === 'satellite' ? '☀️' : earthMode === 'night' ? '🌙' : '🧭'}
             </span>
-            <span className="material-symbols-outlined text-[14px] text-[#6f4315] animate-spin">
+            <span className="material-symbols-outlined text-[12px] text-[#6f4315] animate-spin">
               explore
             </span>
-            <span className="font-label-coord text-[11px] text-[#6f4315] font-bold">
+            <span className="font-label-coord text-[9px] text-[#6f4315] font-bold">
               {activeTargetSpot
                 ? `${formatCoordinates(activeTargetSpot.lat, activeTargetSpot.lng)} • ${activeTargetSpot.nameTh || activeTargetSpot.name}`
                 : selectedPin?.latLngDisplay || "35°41' N • 139°41' E"}
@@ -1503,25 +1583,36 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                 <div
                   key={pin.id}
                   onClick={() => handleSelectPin(pin)}
-                  className={`min-w-[150px] p-2 rounded-xl bg-white border transition-all cursor-pointer shadow-xs hover:shadow-md shrink-0 ${
+                  className={`min-w-[154px] p-2 rounded-xl bg-white border transition-all cursor-pointer shadow-xs hover:shadow-md shrink-0 relative group ${
                     isSelected
                       ? 'border-[#6f4315] ring-2 ring-[#ffdcc1] bg-[#fff8f0]'
-                      : 'border-[#d5c3b6]/70'
+                      : 'border-[#d5c3b6]/70 hover:border-[#6f4315]/50'
                   }`}
                 >
                   <div className="relative w-full h-16 rounded-lg overflow-hidden mb-1.5 bg-[#fdf3dc]">
                     <img
-                      src={
-                        pin.imageUrl ||
-                        'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=200&auto=format&fit=crop&q=80'
-                      }
+                      src={getLocationPhoto(pin.city, pin.country, pin.imageUrl)}
                       alt={pin.city}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
                     />
                     <span className="absolute top-1 left-1 bg-black/65 text-white text-[8px] font-label-coord px-1 rounded font-bold">
                       {pin.code}
                     </span>
-                    <span className="absolute bottom-1 right-1 text-xs">
+
+                    {/* Delete Pin Button (สัญลักษณ์ X เล็กๆ และโปร่งแสง) */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleRequestDeletePin(e, pin)}
+                      className="absolute top-1 right-1 w-4.5 h-4.5 rounded-full bg-black/40 hover:bg-[#ba1a1a]/85 backdrop-blur-xs text-white/90 hover:text-white border border-white/30 hover:border-white/60 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-90 z-10 hover:scale-110"
+                      title={`ลบรายการหมุด ${pin.city}, ${pin.country}`}
+                    >
+                      <span className="material-symbols-outlined text-[10px] font-bold leading-none opacity-90 hover:opacity-100">
+                        close
+                      </span>
+                    </button>
+
+                    <span className="absolute bottom-1 right-1 text-xs drop-shadow">
                       {pin.pinStyle === 'flag' ? '🚩' : pin.pinStyle === 'needle' ? '📍' : '🔘'}
                     </span>
                   </div>
@@ -1565,6 +1656,49 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
           onToast(`ปักหมุดสำเร็จ: ${newPin.city}, ${newPin.country}!`);
         }}
       />
+
+      {/* Delete Confirmation Modal (ยืนยัน Yes or No ก่อนลบ) */}
+      {pinToDelete && (
+        <div
+          onClick={() => setPinToDelete(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xs bg-white rounded-2xl p-4.5 shadow-2xl border border-[#d5c3b6] text-center space-y-3 animate-in zoom-in-95 duration-150"
+          >
+            <div className="w-11 h-11 mx-auto rounded-full bg-[#fff0f0] text-[#ba1a1a] flex items-center justify-center shadow-xs">
+              <span className="material-symbols-outlined text-[22px]">delete</span>
+            </div>
+
+            <div>
+              <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold">
+                ยืนยันการลบรายการหมุดนี้?
+              </h3>
+              <p className="font-body-sm text-xs text-[#51443a] mt-1 leading-snug">
+                คุณต้องการลบหมุด <span className="font-bold text-[#ba1a1a]">{pinToDelete.city}, {pinToDelete.country}</span> ออกจากบันทึกใช่หรือไม่?
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPinToDelete(null)}
+                className="flex-1 py-2 px-3 rounded-xl bg-[#ece2cc] hover:bg-[#d5c3b6] text-[#51443a] text-xs font-bold transition-colors cursor-pointer"
+              >
+                No (ไม่ลบ)
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeletePin}
+                className="flex-1 py-2 px-3 rounded-xl bg-[#ba1a1a] hover:bg-[#93000a] text-white text-xs font-bold shadow-sm transition-colors cursor-pointer active:scale-95"
+              >
+                Yes (ยืนยัน)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* Globe & Pin Settings Modal (ตั้งค่าที่เป็นรูปฟันเฟืองมุมบน) */}
