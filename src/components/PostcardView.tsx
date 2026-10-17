@@ -2,13 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { PostcardItem, StampItem } from '../types';
 import { INITIAL_STAMPS } from '../data/mockData';
 import { CreatePostcardModal } from './CreatePostcardModal';
+import { EditPostcardModal } from './EditPostcardModal';
 import { StampPerforatedFrame } from './StampPerforatedFrame';
+import { SharePostcardModal } from './SharePostcardModal';
 
 interface PostcardViewProps {
   postcards: PostcardItem[];
   savedStamps?: StampItem[];
   onAddPostcard: (postcard: PostcardItem) => void;
   onUpdatePostcard?: (postcard: PostcardItem) => void;
+  onDeletePostcard?: (postcardId: string) => void;
   onToast: (msg: string) => void;
 }
 
@@ -17,12 +20,16 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
   savedStamps = [],
   onAddPostcard,
   onUpdatePostcard,
+  onDeletePostcard,
   onToast,
 }) => {
   const [selectedPostcardId, setSelectedPostcardId] = useState<string>(postcards[0]?.id || '');
   const [isBackSide, setIsBackSide] = useState<boolean>(true);
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
   const [isStampPickerOpen, setIsStampPickerOpen] = useState<boolean>(false);
+  const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [editFocusField, setEditFocusField] = useState<'frontSubtitle' | 'regionCode' | 'frontTitle' | 'journalText' | null>(null);
 
   const activePostcard = postcards.find((p) => p.id === selectedPostcardId) || postcards[0];
 
@@ -32,13 +39,25 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
 
   const handleShare = () => {
     if (!activePostcard) return;
-    navigator.clipboard?.writeText?.(window.location.href);
-    onToast(`แชร์โปสการ์ด "${activePostcard.title}" คัดลอกลิงก์สำเร็จ!`);
+    setIsShareModalOpen(true);
   };
 
   const handleSelectRecent = (card: PostcardItem) => {
     setSelectedPostcardId(card.id);
     onToast(`เปิดโปสการ์ด: ${card.title}`);
+  };
+
+  const handleDeletePostcard = (id: string) => {
+    onDeletePostcard?.(id);
+    const remaining = postcards.filter((p) => p.id !== id);
+    if (selectedPostcardId === id) {
+      if (remaining.length > 0) {
+        setSelectedPostcardId(remaining[0].id);
+      } else {
+        setSelectedPostcardId('');
+      }
+    }
+    onToast('ลบโปสการ์ดออกจากบันทึกเรียบร้อยแล้ว');
   };
 
   const handleCopyNote = () => {
@@ -190,14 +209,6 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#201b0e]/90 via-[#201b0e]/30 to-transparent" />
 
-              {/* Front Corner Airmail Badge */}
-              <div className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg shadow-sm flex items-center space-x-1.5 border border-[#d5c3b6]/50">
-                <span className="material-symbols-outlined text-[14px] text-[#6f4315]">navigation</span>
-                <span className="font-label-coord text-[10px] text-[#6f4315] uppercase font-bold tracking-wider">
-                  {activePostcard.locationTag}
-                </span>
-              </div>
-
               {/* Front Stamp Cancellation Mark Over Print */}
               <div className="absolute top-3 right-3 pointer-events-none opacity-85 mix-blend-screen rotate-[-12deg]">
                 <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border border-dashed border-white flex flex-col items-center justify-center p-1 text-center">
@@ -215,10 +226,29 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
 
               {/* Front Photo Caption */}
               <div className="relative z-10 text-white">
-                <span className="font-label-stamp text-[10px] text-[#ffdea5] tracking-wider uppercase block font-bold">
-                  {activePostcard.frontSubtitle}
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditFocusField('frontSubtitle');
+                    setIsEditOpen(true);
+                  }}
+                  className="font-label-stamp text-[10px] text-[#ffdea5] hover:text-white tracking-wider uppercase inline-flex items-center gap-1 font-bold cursor-pointer transition-colors group/sub"
+                  title="แตะเพื่อแก้ไขคำบรรยายนี้ (ใส่ข้อมูลเองได้)"
+                >
+                  <span>{activePostcard.frontSubtitle}</span>
+                  <span className="material-symbols-outlined text-[12px] opacity-70 group-hover/sub:opacity-100 transition-opacity">
+                    edit
+                  </span>
                 </span>
-                <h2 className="font-headline-md text-[19px] sm:text-[23px] text-white tracking-tight font-bold drop-shadow">
+                <h2
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditFocusField('frontTitle');
+                    setIsEditOpen(true);
+                  }}
+                  className="font-headline-md text-[19px] sm:text-[23px] text-white tracking-tight font-bold drop-shadow cursor-pointer hover:underline"
+                  title="แตะเพื่อแก้ไขชื่อภาพด้านหน้า"
+                >
                   {activePostcard.frontTitle}
                 </h2>
                 <p className="font-label-coord text-[9px] sm:text-[10px] text-[#f2e7d1]/90 mt-0.5 font-medium">
@@ -383,18 +413,36 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
       </div>
 
       {/* Modern Refined Bottom Action Deck ("เมนูด้านหลัง") */}
-      <div className="grid grid-cols-3 gap-2.5 pt-1">
+      <div className="grid grid-cols-4 gap-2 pt-1">
         {/* Flip Button */}
         <button
           type="button"
           onClick={handleToggleFlip}
-          className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/90 backdrop-blur-md text-[#201b0e] hover:bg-[#f7edd7] active:scale-95 transition-all shadow-sm border border-[#d5c3b6]/70 cursor-pointer"
+          className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white/90 backdrop-blur-md text-[#201b0e] hover:bg-[#f7edd7] active:scale-95 transition-all shadow-sm border border-[#d5c3b6]/70 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[20px] text-[#6f4315] mb-1">
+          <span className="material-symbols-outlined text-[19px] text-[#6f4315] mb-0.5">
             flip
           </span>
-          <span className="font-label-ui text-[11px] font-semibold tracking-tight">
-            {isBackSide ? 'พลิกดูภาพด้านหน้า' : 'พลิกดูบันทึกด้านหลัง'}
+          <span className="font-label-ui text-[10px] font-semibold tracking-tight">
+            {isBackSide ? 'ดูด้านหน้า' : 'ดูด้านหลัง'}
+          </span>
+        </button>
+
+        {/* Edit Info Button (ใส่ข้อมูลเองได้) */}
+        <button
+          type="button"
+          onClick={() => {
+            setEditFocusField(null);
+            setIsEditOpen(true);
+          }}
+          className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white/90 backdrop-blur-md text-[#201b0e] hover:bg-[#fdf3dc] active:scale-95 transition-all shadow-sm border border-[#d5c3b6]/70 cursor-pointer"
+          title="แก้ไขข้อมูลโปสการ์ดด้วยตนเอง (ใส่ข้อมูลเองได้)"
+        >
+          <span className="material-symbols-outlined text-[19px] text-[#6f4315] mb-0.5">
+            edit_note
+          </span>
+          <span className="font-label-ui text-[10px] font-semibold tracking-tight">
+            แก้ไขข้อมูล
           </span>
         </button>
 
@@ -402,10 +450,10 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
         <button
           type="button"
           onClick={() => setIsCreateOpen(true)}
-          className="flex flex-col items-center justify-center p-3 rounded-2xl bg-[#6f4315] text-white shadow-md hover:bg-[#8b5a2b] active:scale-95 transition-all cursor-pointer"
+          className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-[#6f4315] text-white shadow-md hover:bg-[#8b5a2b] active:scale-95 transition-all cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[20px] mb-1">edit_document</span>
-          <span className="font-label-ui text-[11px] font-semibold tracking-tight">
+          <span className="material-symbols-outlined text-[19px] mb-0.5">edit_document</span>
+          <span className="font-label-ui text-[10px] font-semibold tracking-tight">
             เขียนฉบับใหม่
           </span>
         </button>
@@ -414,13 +462,13 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
         <button
           type="button"
           onClick={handleShare}
-          className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/90 backdrop-blur-md text-[#201b0e] hover:bg-[#f7edd7] active:scale-95 transition-all shadow-sm border border-[#d5c3b6]/70 cursor-pointer"
+          className="flex flex-col items-center justify-center p-2.5 rounded-2xl bg-white/90 backdrop-blur-md text-[#201b0e] hover:bg-[#f7edd7] active:scale-95 transition-all shadow-sm border border-[#d5c3b6]/70 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[20px] text-[#465f88] mb-1">
+          <span className="material-symbols-outlined text-[19px] text-[#465f88] mb-0.5">
             ios_share
           </span>
-          <span className="font-label-ui text-[11px] font-semibold tracking-tight">
-            แชร์โปสการ์ด
+          <span className="font-label-ui text-[10px] font-semibold tracking-tight">
+            แชร์
           </span>
         </button>
       </div>
@@ -441,33 +489,79 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
           </span>
         </div>
 
-        {/* Horizontal Miniature Keepsakes */}
-        <div className="grid grid-cols-3 gap-2">
-          {postcards.slice(1, 4).map((card) => {
+        {/* Horizontal Miniature Keepsakes - All postcards editable & shareable */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {postcards.map((card) => {
             const isSelected = card.id === selectedPostcardId;
             return (
               <div
                 key={card.id}
                 onClick={() => handleSelectRecent(card)}
-                className={`bg-white p-2 rounded-xl shadow-xs flex flex-col space-y-1 hover:shadow-md transition-all cursor-pointer border ${
+                className={`bg-white p-2 rounded-xl shadow-xs flex flex-col space-y-1.5 hover:shadow-md transition-all cursor-pointer border relative group ${
                   isSelected ? 'border-[#6f4315] ring-2 ring-[#ffdcc1]' : 'border-[#d5c3b6]/50'
                 }`}
               >
-                <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden">
+                <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden bg-black/10">
                   <img
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     alt={card.title}
                     src={card.imageUrl}
                   />
-                  <span className="absolute top-1 right-1 bg-white/90 text-[#6f4315] text-[8px] font-label-coord px-1 rounded font-bold shadow-2xs">
+
+                  {/* Top Left: Quick Edit Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPostcardId(card.id);
+                      setEditFocusField(null);
+                      setIsEditOpen(true);
+                    }}
+                    className="absolute top-1 left-1 bg-white/90 hover:bg-[#6f4315] hover:text-white text-[#6f4315] w-6 h-6 rounded-md flex items-center justify-center shadow-xs transition-colors z-10"
+                    title="แก้ไขข้อมูลโปสการ์ดใบนี้ (ใส่ข้อมูลเองได้)"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">edit</span>
+                  </button>
+
+                  {/* Top Right: Region Code */}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPostcardId(card.id);
+                      setEditFocusField('regionCode');
+                      setIsEditOpen(true);
+                    }}
+                    className="absolute top-1 right-1 bg-white/90 text-[#6f4315] hover:bg-[#6f4315] hover:text-white text-[8px] font-label-coord px-1 rounded font-bold shadow-2xs cursor-pointer transition-colors"
+                    title="แตะเพื่อแก้ไขรหัสโค้ด (ใส่ข้อมูลเองได้)"
+                  >
                     {card.regionCode}
                   </span>
+
+                  {/* Bottom Right: Quick Share Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPostcardId(card.id);
+                      setIsShareModalOpen(true);
+                    }}
+                    className="absolute bottom-1 right-1 bg-white/90 hover:bg-[#465f88] hover:text-white text-[#465f88] w-6 h-6 rounded-md flex items-center justify-center shadow-xs transition-colors z-10"
+                    title="แชร์โปสการ์ดใบนี้ (LINE, Email, Image Link, JPG)"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">ios_share</span>
+                  </button>
                 </div>
+
                 <div className="px-0.5">
-                  <h4 className="font-headline-sm text-[11px] sm:text-[12px] text-[#201b0e] truncate leading-tight font-medium">
-                    {card.frontTitle}
-                  </h4>
-                  <span className="font-label-coord text-[8px] sm:text-[9px] text-[#837469] block truncate">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-headline-sm text-[11px] sm:text-[12px] text-[#201b0e] truncate leading-tight font-semibold">
+                      {card.frontTitle}
+                    </h4>
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#6f4315] shrink-0" />
+                    )}
+                  </div>
+                  <span className="font-label-coord text-[8px] sm:text-[9px] text-[#837469] block truncate mt-0.5">
                     {card.dateDisplay.split('•')[0]}
                   </span>
                 </div>
@@ -487,6 +581,22 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
           setIsBackSide(false);
           onToast(`สร้างโปสการ์ด "${newCard.frontTitle}" สำเร็จ!`);
         }}
+      />
+
+      {/* Edit Postcard Modal (ใส่ข้อมูลเองได้ & มีปุ่มลบโปสการ์ด) */}
+      <EditPostcardModal
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setEditFocusField(null);
+        }}
+        postcard={activePostcard}
+        initialFocusField={editFocusField}
+        onSave={(updated) => {
+          onUpdatePostcard?.(updated);
+          onToast(`บันทึกข้อมูลโปสการ์ด "${updated.frontTitle}" สำเร็จ!`);
+        }}
+        onDelete={handleDeletePostcard}
       />
 
       {/* Stamp Picker Modal (สามารถเลือก Stamp จากที่บันทึกไว้ได้) */}
@@ -583,6 +693,14 @@ export const PostcardView: React.FC<PostcardViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Share Postcard Modal (แชร์เป็นลิ้งค์รูปภาพ, LINE, Email, บันทึกเป็น .jpg) */}
+      <SharePostcardModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        postcard={activePostcard}
+        onToast={onToast}
+      />
     </div>
   );
 };

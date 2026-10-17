@@ -177,8 +177,18 @@ export default function App() {
     );
   };
 
+  const handleDeletePostcard = (cardId: string) => {
+    setPostcards((prev) => prev.filter((c) => c.id !== cardId));
+  };
+
   const handleAddStamp = (newStamp: StampItem) => {
     setStamps((prev) => [newStamp, ...prev]);
+  };
+
+  const handleUpdateStamp = (updatedStamp: StampItem) => {
+    setStamps((prev) =>
+      prev.map((s) => (s.id === updatedStamp.id ? updatedStamp : s))
+    );
   };
 
   const handleAddPassportStamp = (newVisa: PassportVisaStamp) => {
@@ -345,6 +355,7 @@ export default function App() {
             savedStamps={stamps}
             onAddPostcard={handleAddPostcard}
             onUpdatePostcard={handleUpdatePostcard}
+            onDeletePostcard={handleDeletePostcard}
             onToast={showToast}
           />
         )}
@@ -353,6 +364,7 @@ export default function App() {
           <StampsView
             stamps={stamps}
             onAddStamp={handleAddStamp}
+            onUpdateStamp={handleUpdateStamp}
             onToast={showToast}
           />
         )}

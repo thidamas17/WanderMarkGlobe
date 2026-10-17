@@ -173,6 +173,10 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
   const [editingPinDateText, setEditingPinDateText] = useState<string>('');
   const [pinToDelete, setPinToDelete] = useState<GlobePin | null>(null);
 
+  // Card display mode: 'normal' | 'collapsed' | 'full' (กดให้ย่อไว้ หรือขยายแบบเต็มได้)
+  const [cardMode, setCardMode] = useState<'normal' | 'collapsed' | 'full'>('normal');
+  const [isGlobeExpanded, setIsGlobeExpanded] = useState<boolean>(false);
+
   // Earth visual mode: 'satellite' = Day (Realistic), 'night' = Night (Realistic City Lights), 'sample' = Vintage Cartography
   const [earthMode, setEarthMode] = useState<EarthStyleMode>('satellite');
 
@@ -244,6 +248,20 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
       setSelectedPin(null);
     }
   }, [pins, selectedPin]);
+
+  // Handle globe size expansion resize update
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (containerRef.current && rendererRef.current && cameraRef.current) {
+        const w = containerRef.current.clientWidth;
+        const h = containerRef.current.clientHeight;
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+        rendererRef.current.setSize(w, h);
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [isGlobeExpanded]);
 
   // Focus smooth rotation onto a coordinate
   const focusOnCoordinates = useCallback((lat: number, lng: number) => {
@@ -1150,7 +1168,11 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
 
       {/* Photorealistic 3D Globe Viewport */}
       <div className="px-4 mt-1">
-        <div className="relative w-full aspect-square max-h-[430px] bg-[#121212] rounded-2xl overflow-hidden shadow-2xl border border-[#d5c3b6]/50">
+        <div
+          className={`relative w-full ${
+            isGlobeExpanded ? 'h-[520px] sm:h-[580px]' : 'aspect-square max-h-[430px]'
+          } bg-[#121212] rounded-2xl overflow-hidden shadow-2xl border border-[#d5c3b6]/50 transition-all duration-500`}
+        >
 
           {/* Three.js Canvas Container */}
           <div
@@ -1232,6 +1254,21 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                 {autoRotate ? 'pause' : 'play_arrow'}
               </span>
             </button>
+
+            {/* Expand / Collapse Globe Viewport */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsGlobeExpanded(!isGlobeExpanded);
+                onToast(isGlobeExpanded ? 'ย่อมุมมองลูกโลก' : 'ขยายมุมมองลูกโลกแบบเต็ม');
+              }}
+              className="w-8 h-8 bg-black/60 backdrop-blur-md text-white rounded-full flex items-center justify-center hover:bg-black/80 hover:border-white/50 border border-white/20 shadow-md active:scale-90 transition-all cursor-pointer"
+              title={isGlobeExpanded ? 'ย่อลูกโลก' : 'ขยายลูกโลกแบบเต็ม'}
+            >
+              <span className="material-symbols-outlined text-[16px] text-[#ffd700]">
+                {isGlobeExpanded ? 'fullscreen_exit' : 'fullscreen'}
+              </span>
+            </button>
           </div>
 
           {/* Quick Add Pin Icon Button (Bottom Right) when no pin is selected */}
@@ -1297,9 +1334,71 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
             </div>
           )}
 
-          {/* Floating Glassmorphism Destination Card (Shown when pin is selected, with close button) */}
-          {selectedPin && (
-            <div className="absolute bottom-3 inset-x-3 bg-white/94 backdrop-blur-xl rounded-xl p-2.5 shadow-2xl border border-white/60 flex items-center justify-between transition-all duration-300 z-10">
+          {/* Floating Glassmorphism Destination Card - 1. COLLAPSED MODE (ย่อไว้: แถบเล็กกะทัดรัด เปิดมุมมองลูกโลก) */}
+          {selectedPin && cardMode === 'collapsed' && (
+            <div className="absolute bottom-3 inset-x-3 sm:inset-x-6 bg-white/94 backdrop-blur-xl rounded-full px-3 py-1.5 shadow-2xl border border-white/70 flex items-center justify-between transition-all duration-300 z-10 animate-in fade-in slide-in-from-bottom-2">
+              <div
+                onClick={() => setCardMode('normal')}
+                className="flex items-center gap-2 min-w-0 cursor-pointer flex-1"
+                title="แตะเพื่อเปิดดูรายละเอียด"
+              >
+                <span className="text-sm shrink-0">
+                  {selectedPin.pinStyle === 'flag'
+                    ? '🚩'
+                    : selectedPin.pinStyle === 'needle'
+                    ? '📍'
+                    : '🔘'}
+                </span>
+                <span className="font-headline-sm text-xs text-[#201b0e] font-bold truncate">
+                  {selectedPin.city}, {selectedPin.country}
+                </span>
+                <span className="font-label-coord text-[9px] bg-[#fdf3dc] text-[#6f4315] px-1.5 py-0.2 rounded font-semibold shrink-0 border border-[#d5c3b6]/60">
+                  {selectedPin.date}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0 ml-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardMode('normal');
+                    onToast('คืนค่าขนาดการ์ดปกติ');
+                  }}
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[#fdf3dc] hover:bg-[#ffdea5] text-[#6f4315] text-[10px] font-bold border border-[#d5c3b6]/60 transition-all cursor-pointer shadow-2xs"
+                  title="คืนค่าขนาดปกติ"
+                >
+                  <span className="material-symbols-outlined text-[13px]">expand_less</span>
+                  <span>ปกติ</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardMode('full');
+                    onToast('ขยายการ์ดแบบเต็ม');
+                  }}
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-[#6f4315] hover:bg-[#8b5a2b] text-white text-[10px] font-bold transition-all cursor-pointer shadow-2xs"
+                  title="ขยายแบบเต็ม (Full View)"
+                >
+                  <span className="material-symbols-outlined text-[13px]">open_in_full</span>
+                  <span>ขยายเต็ม</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPin(null)}
+                  className="w-6 h-6 rounded-full text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors"
+                  title="ปิดการ์ด"
+                >
+                  <span className="material-symbols-outlined text-[15px]">close</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Glassmorphism Destination Card - 2. NORMAL MODE (ปกติ + ปุ่มย่อไว้ / ขยายเต็ม) */}
+          {selectedPin && cardMode === 'normal' && (
+            <div className="absolute bottom-3 inset-x-3 bg-white/94 backdrop-blur-xl rounded-xl p-2.5 shadow-2xl border border-white/60 flex items-center justify-between transition-all duration-300 z-10 animate-in fade-in">
               <div className="flex items-center gap-2.5 min-w-0">
                 <img
                   src={getLocationPhoto(selectedPin.city, selectedPin.country, selectedPin.imageUrl)}
@@ -1332,8 +1431,24 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                         value={editingPinDateText}
                         onChange={(e) => setEditingPinDateText(e.target.value)}
                         placeholder="เช่น 14 ต.ค. 2026"
-                        className="px-2 py-0.5 text-[10px] bg-white rounded border border-[#6f4315] text-[#201b0e] font-semibold focus:outline-none w-28"
+                        className="px-2 py-0.5 text-[10px] bg-white rounded border border-[#6f4315] text-[#201b0e] font-semibold focus:outline-none w-24"
                         autoFocus
+                      />
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const d = new Date(e.target.value);
+                            const thaiMonths = [
+                              'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                              'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                            ];
+                            const formatted = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear()}`;
+                            setEditingPinDateText(formatted);
+                          }
+                        }}
+                        className="w-6 h-5 p-0 bg-white rounded border border-[#d5c3b6] text-[#6f4315] cursor-pointer"
+                        title="เลือกวันที่จากปฏิทิน"
                       />
                       <button
                         type="button"
@@ -1382,31 +1497,246 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
               </div>
 
               <div className="flex items-center gap-1 ml-2 shrink-0">
+                {/* ปุ่มย่อไว้ (Collapse) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardMode('collapsed');
+                    onToast('ย่อการ์ดไว้เรียบร้อย');
+                  }}
+                  className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-[#f5ede2] text-[#6f4315] hover:bg-[#ece2cc] active:scale-95 transition-all border border-[#d5c3b6]/60 shadow-2xs cursor-pointer"
+                  title="กดให้ย่อไว้ (เปิดมุมมองลูกโลก)"
+                >
+                  <span className="material-symbols-outlined text-[16px]">unfold_less</span>
+                  <span className="font-label-ui text-[8.5px] font-bold">ย่อไว้</span>
+                </button>
+
+                {/* ปุ่มขยายแบบเต็ม (Expand to Full) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCardMode('full');
+                    onToast('ขยายการ์ดแบบเต็ม');
+                  }}
+                  className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-[#fdf3dc] text-[#6f4315] hover:bg-[#ffdea5] active:scale-95 transition-all border border-[#d5c3b6]/60 shadow-2xs cursor-pointer"
+                  title="กดขยายแบบเต็ม"
+                >
+                  <span className="material-symbols-outlined text-[16px]">open_in_full</span>
+                  <span className="font-label-ui text-[8.5px] font-bold">ขยายเต็ม</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => onNavigateTab('passport')}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#fdf3dc] text-[#6f4315] hover:bg-[#f2e7d1] active:scale-95 transition-all border border-[#d5c3b6]/60 shadow-xs cursor-pointer"
+                  className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-[#fdf3dc] text-[#6f4315] hover:bg-[#f2e7d1] active:scale-95 transition-all border border-[#d5c3b6]/60 shadow-2xs cursor-pointer"
                   title="เปิดดูตราประทับในพาสปอร์ต"
                 >
-                  <span className="material-symbols-outlined text-[18px]">menu_book</span>
-                  <span className="font-label-ui text-[9px] font-semibold">พาสปอร์ต</span>
+                  <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                  <span className="font-label-ui text-[8.5px] font-semibold">พาสปอร์ต</span>
                 </button>
                 <button
                   type="button"
                   onClick={(e) => handleRequestDeletePin(e, selectedPin)}
-                  className="flex flex-col items-center justify-center p-2 rounded-lg bg-[#fff0f0] text-[#ba1a1a] hover:bg-[#ffe2e2] active:scale-95 transition-all border border-[#ba1a1a]/30 shadow-xs cursor-pointer"
+                  className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-[#fff0f0] text-[#ba1a1a] hover:bg-[#ffe2e2] active:scale-95 transition-all border border-[#ba1a1a]/30 shadow-2xs cursor-pointer"
                   title="ลบหมุดนี้"
                 >
-                  <span className="material-symbols-outlined text-[18px]">delete</span>
-                  <span className="font-label-ui text-[9px] font-semibold">ลบหมุด</span>
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  <span className="font-label-ui text-[8.5px] font-semibold">ลบ</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedPin(null)}
-                  className="w-7 h-7 rounded-lg text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors"
+                  className="w-6 h-6 rounded-lg text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors"
                   title="ปิดการแสดงการ์ดหมุด"
                 >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Glassmorphism Destination Card - 3. FULL EXPANDED MODE (ขยายแบบเต็ม: ดูภาพใหญ่ รายละเอียดครบถ้วน) */}
+          {selectedPin && cardMode === 'full' && (
+            <div className="absolute inset-x-3 bottom-3 top-10 bg-white/96 backdrop-blur-2xl rounded-2xl p-3 shadow-2xl border border-white/80 flex flex-col justify-between transition-all duration-300 z-20 animate-in fade-in zoom-in-95 overflow-hidden">
+              {/* Header Bar */}
+              <div className="flex items-center justify-between pb-2 border-b border-[#ece2cc] shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-label-stamp text-[8.5px] bg-[#ffdea5] text-[#261900] px-2 py-0.5 rounded font-bold shadow-2xs shrink-0">
+                    {selectedPin.status}
+                  </span>
+                  <span className="font-label-coord text-[9.5px] text-[#837469] font-bold uppercase truncate">
+                    {selectedPin.region || 'WORLD PIN'} • NO. {selectedPin.code}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  {/* ปุ่มย่อกลับเป็นปกติ */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardMode('normal');
+                      onToast('ย่อกลับขนาดปกติ');
+                    }}
+                    className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg bg-[#f5ede2] hover:bg-[#ece2cc] text-[#6f4315] text-[10px] font-bold transition-all cursor-pointer shadow-2xs"
+                    title="ย่อกลับขนาดปกติ"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">close_fullscreen</span>
+                    <span>ย่อกลับ</span>
+                  </button>
+
+                  {/* ปุ่มย่อเล็กสุด */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardMode('collapsed');
+                      onToast('ย่อไว้เป็นแถบเล็ก');
+                    }}
+                    className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg bg-[#f5ede2] hover:bg-[#ece2cc] text-[#6f4315] text-[10px] font-bold transition-all cursor-pointer shadow-2xs"
+                    title="กดให้ย่อไว้เป็นแถบเล็ก"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">unfold_less</span>
+                    <span>ย่อเล็กสุด</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPin(null)}
+                    className="w-7 h-7 rounded-lg text-[#837469] hover:text-[#201b0e] hover:bg-black/5 flex items-center justify-center cursor-pointer transition-colors ml-1"
+                    title="ปิดการ์ด"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto py-2 space-y-2.5 no-scrollbar">
+                {/* Large Photo Banner */}
+                <div className="relative w-full h-28 sm:h-36 rounded-xl overflow-hidden shadow-inner bg-[#fdf3dc] shrink-0">
+                  <img
+                    src={getLocationPhoto(selectedPin.city, selectedPin.country, selectedPin.imageUrl)}
+                    alt={selectedPin.city}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-2.5">
+                    <div className="text-white">
+                      <span className="text-[11px] font-semibold flex items-center gap-1 drop-shadow">
+                        <span>{selectedPin.pinStyle === 'flag' ? '🚩 หมุดธง' : selectedPin.pinStyle === 'needle' ? '📍 หมุดเข็ม' : '🔘 หมุดเรืองแสง'}</span>
+                        <span>• {selectedPin.categoryTag || 'บันทึกการเดินทาง'}</span>
+                      </span>
+                      <h2 className="font-headline-md text-base sm:text-lg font-bold drop-shadow leading-tight">
+                        {selectedPin.city}, {selectedPin.country}
+                      </h2>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  {/* Date section */}
+                  <div className="p-2 rounded-xl bg-[#fdf3dc]/80 border border-[#d5c3b6]/70 flex flex-col justify-between">
+                    <span className="font-label-coord text-[8.5px] text-[#837469] uppercase font-bold block mb-1">
+                      วันที่บันทึกพิกัด
+                    </span>
+                    {isEditingPinDate ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={editingPinDateText}
+                          onChange={(e) => setEditingPinDateText(e.target.value)}
+                          placeholder="เช่น 14 ต.ค. 2026"
+                          className="px-2 py-0.5 text-[10px] bg-white rounded border border-[#6f4315] text-[#201b0e] font-semibold focus:outline-none flex-1"
+                          autoFocus
+                        />
+                        <input
+                          type="date"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const d = new Date(e.target.value);
+                              const thaiMonths = [
+                                'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+                              ];
+                              const formatted = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear()}`;
+                              setEditingPinDateText(formatted);
+                            }
+                          }}
+                          className="w-7 h-6 p-0 bg-white rounded border border-[#d5c3b6] text-[#6f4315] cursor-pointer"
+                          title="เลือกวันที่จากปฏิทิน"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const trimmed = editingPinDateText.trim();
+                            if (trimmed) {
+                              onUpdatePinDate?.(selectedPin.id, trimmed);
+                              setSelectedPin((prev) => (prev ? { ...prev, date: trimmed } : null));
+                              setIsEditingPinDate(false);
+                              onToast(`แก้ไขวันที่บันทึกพิกัดเป็น "${trimmed}" สำเร็จ`);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded text-[9px] bg-[#6f4315] text-white font-bold cursor-pointer"
+                        >
+                          บันทึก
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPinDate(false)}
+                          className="px-1.5 py-0.5 rounded text-[9px] bg-[#ece2cc] text-[#51443a] cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="font-label-stamp text-[11px] text-[#6f4315] font-bold">
+                          {selectedPin.date}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPinDateText(selectedPin.date);
+                            setIsEditingPinDate(true);
+                          }}
+                          className="px-1.5 py-0.5 rounded text-[9px] bg-[#ffdea5] text-[#6f4315] hover:bg-[#ffeed3] font-bold flex items-center gap-0.5 cursor-pointer"
+                          title="แก้ไขวันที่"
+                        >
+                          <span className="material-symbols-outlined text-[10px]">edit</span>
+                          <span>แก้ไข</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* GPS Coordinates */}
+                  <div className="p-2 rounded-xl bg-[#fdf3dc]/80 border border-[#d5c3b6]/70 flex flex-col justify-between">
+                    <span className="font-label-coord text-[8.5px] text-[#837469] uppercase font-bold block mb-1">
+                      พิกัด GPS บนโลกจริง
+                    </span>
+                    <span className="font-label-coord text-[10px] text-[#465f88] font-bold block truncate">
+                      {selectedPin.latLngDisplay}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="pt-2 border-t border-[#ece2cc] flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('passport')}
+                  className="flex-1 py-2 rounded-xl bg-[#6f4315] text-white hover:bg-[#8b5a2b] font-title-md text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                  <span>เปิดดูตราประทับในพาสปอร์ต</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleRequestDeletePin(e, selectedPin)}
+                  className="py-2 px-3 rounded-xl bg-[#fff0f0] text-[#ba1a1a] hover:bg-[#ffe2e2] font-title-md text-xs font-bold border border-[#ba1a1a]/30 transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  <span>ลบ</span>
                 </button>
               </div>
             </div>

@@ -78,6 +78,8 @@ export const CreatePostcardModal: React.FC<CreatePostcardModalProps> = ({
   const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
   const [title, setTitle] = useState('บันทึกความทรงจำจากเกียวโต');
   const [frontTitle, setFrontTitle] = useState('เงาไผ่ต้องลมยามเช้า');
+  const [frontSubtitle, setFrontSubtitle] = useState('เกียวโต (Kyoto)');
+  const [regionCode, setRegionCode] = useState('JPN');
   const [journalText, setJournalText] = useState(
     '“เช้าวันนี้ตื่นตั้งแต่ 6 โมงเช้าเพื่อมาเดินในป่าไผ่ สายลมพัดกระทบต้นไผ่เสียงดังก้องกังวาน ได้กลิ่นใบไม้สดชื่นหลังฝนตก แวะดื่มมัทฉะร้อนในศาลเจ้าโบราณ... เป็นช่วงเวลาที่สงบสุขที่สุดของทริปนี้”'
   );
@@ -94,6 +96,8 @@ export const CreatePostcardModal: React.FC<CreatePostcardModalProps> = ({
   const handleSelectPreset = (idx: number) => {
     setSelectedPresetIndex(idx);
     const p = PRESET_PHOTOS[idx];
+    setFrontSubtitle(p.name);
+    setRegionCode(p.region);
     if (idx === 0) {
       setTitle('บันทึกความทรงจำจากเกียวโต');
       setFrontTitle('เงาไผ่ต้องลมยามเช้า');
@@ -134,9 +138,9 @@ export const CreatePostcardModal: React.FC<CreatePostcardModalProps> = ({
       code: `${Math.floor(Math.random() * 800 + 100)}/24`,
       title,
       frontTitle,
-      frontSubtitle: currentPreset.name,
+      frontSubtitle: frontSubtitle || currentPreset.name,
       frontCoords: `LAT ${currentPreset.coords} • EXPEDITION`,
-      regionCode: currentPreset.region,
+      regionCode: regionCode || currentPreset.region,
       country: currentPreset.country,
       continent: currentPreset.continent || 'asia',
       createdAt: Date.now(),
@@ -242,6 +246,34 @@ export const CreatePostcardModal: React.FC<CreatePostcardModalProps> = ({
                   ✓ ใช้ภาพที่อัปโหลดแล้ว
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Subtitle & Region Code (ใส่ข้อมูลเองได้) */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
+                รหัสโค้ด (Region)
+              </label>
+              <input
+                type="text"
+                value={regionCode}
+                onChange={(e) => setRegionCode(e.target.value)}
+                placeholder="เช่น JPN, BKK"
+                className="w-full px-3 py-2 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#6f4315] font-bold focus:outline-none focus:ring-1 focus:ring-[#6f4315] uppercase"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
+                คำบรรยายด้านหน้า (Front Subtitle)
+              </label>
+              <input
+                type="text"
+                value={frontSubtitle}
+                onChange={(e) => setFrontSubtitle(e.target.value)}
+                placeholder="เช่น เกียวโต (Kyoto)"
+                className="w-full px-3 py-2 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e] focus:outline-none focus:ring-1 focus:ring-[#6f4315]"
+              />
             </div>
           </div>
 

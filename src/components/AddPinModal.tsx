@@ -93,6 +93,32 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({
   const [pinStyle, setPinStyle] = useState<PinStyleType>('dot');
   const [pinColor, setPinColor] = useState('#ffb703');
 
+  // Date of Pinning state & Calendar helpers (วันที่ปักหมุด สามารถเลือกแบบปฏิทินได้)
+  const getTodayISO = () => {
+    const d = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const formatISODateToDisplay = (isoStr: string) => {
+    if (!isoStr) return '';
+    const parts = isoStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const thaiMonths = [
+        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
+      ];
+      return `${day} ${thaiMonths[month] || ''} ${year}`;
+    }
+    return isoStr;
+  };
+
+  const [dateISO, setDateISO] = useState<string>(getTodayISO());
+  const [displayDate, setDisplayDate] = useState<string>(() => formatISODateToDisplay(getTodayISO()));
+
   // Quick In-Modal Search state
   const [modalSearch, setModalSearch] = useState('');
   const [modalResults, setModalResults] = useState<WorldLocation[]>([]);
@@ -184,7 +210,7 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({
       city: city || 'เมืองใหม่',
       country: country || 'จุดหมายปลายทาง',
       region: region || 'พิกัดสำรวจ',
-      date: new Date().toLocaleDateString('th-TH', {
+      date: displayDate || formatISODateToDisplay(dateISO) || new Date().toLocaleDateString('th-TH', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -414,6 +440,65 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({
                 required
                 className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#465f88] font-bold"
               />
+            </div>
+          </div>
+
+          {/* วันที่ปักหมุด (เลือกแบบปฏิทินได้) */}
+          <div className="p-2.5 rounded-xl bg-[#fdf3dc] border border-[#d5c3b6]/70 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="font-label-coord text-[10px] text-[#6f4315] uppercase font-bold flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                <span>วันที่ปักหมุด (เลือกจากปฏิทิน)</span>
+              </label>
+              <span className="font-label-stamp text-[10px] text-[#6f4315] bg-white/80 px-2 py-0.5 rounded border border-[#d5c3b6]/70 font-bold shadow-2xs">
+                {displayDate}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="date"
+                  value={dateISO}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDateISO(val);
+                    if (val) {
+                      setDisplayDate(formatISODateToDisplay(val));
+                    }
+                  }}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e] font-semibold focus:outline-none focus:ring-1 focus:ring-[#6f4315] shadow-xs cursor-pointer"
+                />
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = getTodayISO();
+                    setDateISO(today);
+                    setDisplayDate(formatISODateToDisplay(today));
+                  }}
+                  className="px-2 py-1.5 text-[10px] rounded-lg bg-white hover:bg-[#fff8f0] text-[#6f4315] border border-[#d5c3b6] font-bold cursor-pointer transition-colors shadow-2xs"
+                >
+                  วันนี้
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 1);
+                    const pad = (n: number) => n.toString().padStart(2, '0');
+                    const yesterday = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                    setDateISO(yesterday);
+                    setDisplayDate(formatISODateToDisplay(yesterday));
+                  }}
+                  className="px-2 py-1.5 text-[10px] rounded-lg bg-white hover:bg-[#fff8f0] text-[#51443a] border border-[#d5c3b6] font-medium cursor-pointer transition-colors shadow-2xs"
+                >
+                  เมื่อวาน
+                </button>
+              </div>
             </div>
           </div>
 

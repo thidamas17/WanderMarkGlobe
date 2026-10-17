@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
 import { StampItem } from '../types';
 import { CreateStampModal } from './CreateStampModal';
+import { EditStampModal } from './EditStampModal';
 import { StampPerforatedFrame } from './StampPerforatedFrame';
 
 interface StampsViewProps {
   stamps: StampItem[];
   onAddStamp: (stamp: StampItem) => void;
+  onUpdateStamp?: (stamp: StampItem) => void;
   onToast: (msg: string) => void;
 }
 
-export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onToast }) => {
+export const StampsView: React.FC<StampsViewProps> = ({
+  stamps,
+  onAddStamp,
+  onUpdateStamp,
+  onToast,
+}) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'asia' | 'europe' | 'africa' | 'america'>('all');
   const [selectedStamp, setSelectedStamp] = useState<StampItem | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+  const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
+  const [stampToEdit, setStampToEdit] = useState<StampItem | null>(null);
 
   const totalCount = stamps.length;
   const asiaCount = stamps.filter((s) => s.region === 'asia').length;
@@ -39,6 +48,94 @@ export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onTo
 
   const handleCloseModal = () => {
     setSelectedStamp(null);
+  };
+
+  const handleShareStamp = (stamp: StampItem) => {
+    const text = `📮 ดวงตราไปรษณียากรสะสม Wandermark: ${stamp.title} (${stamp.banner || stamp.country} - ${stamp.price})\nชมภาพแสตมป์: ${stamp.imageUrl}`;
+    const lineUrl = `https://line.me/R/msg/text/?${encodeURIComponent(text)}`;
+    window.open(lineUrl, '_blank', 'noopener,noreferrer');
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(stamp.imageUrl);
+    }
+    onToast(`เปิด LINE เพื่อแชร์แสตมป์ "${stamp.title}" (คัดลอกลิงก์ภาพแล้ว)`);
+  };
+
+  const handleDownloadStampJpg = async (stamp: StampItem) => {
+    onToast(`กำลังสร้างไฟล์ภาพ .jpg สำหรับแสตมป์ "${stamp.title}"...`);
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = 600;
+      canvas.height = 750;
+
+      // Outer Paper
+      ctx.fillStyle = '#fdf3dc';
+      ctx.fillRect(0, 0, 600, 750);
+
+      // Stamp border
+      ctx.fillStyle = '#fffdfa';
+      ctx.fillRect(40, 40, 520, 670);
+      ctx.strokeStyle = '#6f4315';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(40, 40, 520, 670);
+
+      // Banner text
+      ctx.fillStyle = '#6f4315';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((stamp.banner || stamp.country || 'POSTAGE').toUpperCase(), 300, 95);
+
+      // Try image
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = stamp.imageUrl;
+        });
+        ctx.drawImage(img, 65, 120, 470, 450);
+      } catch {
+        ctx.fillStyle = '#353021';
+        ctx.fillRect(65, 120, 470, 450);
+      }
+
+      // Title & Price
+      ctx.fillStyle = '#201b0e';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillText(stamp.title, 300, 615);
+
+      ctx.fillStyle = '#644807';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.fillText(stamp.price, 300, 665);
+
+      // Postmark mark
+      ctx.save();
+      ctx.translate(450, 200);
+      ctx.rotate((-15 * Math.PI) / 180);
+      ctx.strokeStyle = 'rgba(111, 67, 21, 0.7)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 60, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(111, 67, 21, 0.7)';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(stamp.postmarkStation || 'OFFICIAL', 0, -10);
+      ctx.fillText(stamp.postmarkDate || 'REGISTERED', 0, 15);
+      ctx.restore();
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `stamp_${stamp.title.replace(/[^\wก-๙]/g, '_')}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      onToast(`บันทึกไฟล์ภาพแสตมป์ "${stamp.title}.jpg" สำเร็จ!`);
+    } catch {
+      onToast(`บันทึกภาพสำเร็จ`);
+    }
   };
 
   return (
@@ -125,6 +222,20 @@ export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onTo
                 <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-tr pointer-events-none" />
                 <div className="absolute bottom-0.5 left-0.5 w-2 h-2 bg-[#353021]/40 rounded-bl pointer-events-none" />
                 <div className="absolute bottom-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-br pointer-events-none" />
+
+                {/* Quick Edit Stamp Button on Card */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setStampToEdit(stamp);
+                    setIsEditOpen(true);
+                  }}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/90 hover:bg-[#6f4315] hover:text-white text-[#6f4315] shadow-xs flex items-center justify-center transition-all z-10 cursor-pointer"
+                  title="แก้ไขข้อมูลแสตมป์ดวงนี้"
+                >
+                  <span className="material-symbols-outlined text-[13px]">edit</span>
+                </button>
 
                 {/* Stamp with Authentic Perforated Frame */}
                 <StampPerforatedFrame
@@ -305,28 +416,33 @@ export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onTo
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  onToast(`แชร์การ์ดแสตมป์ ${selectedStamp.title} แล้ว`);
-                  handleCloseModal();
+                  setStampToEdit(selectedStamp);
+                  setIsEditOpen(true);
                 }}
-                className="bg-[#f2e7d1] text-[#201b0e] py-2.5 rounded-lg font-title-md text-xs flex items-center justify-center gap-1 hover:bg-[#ece2cc] transition-colors"
+                className="bg-[#fff8f0] border border-[#d5c3b6] text-[#6f4315] py-2.5 rounded-lg font-title-md text-xs flex items-center justify-center gap-1 hover:bg-[#fdf3dc] font-bold transition-colors cursor-pointer active:scale-95"
               >
-                <span className="material-symbols-outlined text-[16px]">share</span>
-                <span>แบ่งปันการ์ด</span>
+                <span className="material-symbols-outlined text-[15px]">edit</span>
+                <span>แก้ไขแสตมป์</span>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  onToast(`บันทึกไฟล์ภาพแสตมป์ ${selectedStamp.title} เรียบร้อย!`);
-                  handleCloseModal();
-                }}
-                className="bg-[#6f4315] text-white py-2.5 rounded-lg font-title-md text-xs flex items-center justify-center gap-1 hover:bg-[#8b5a2b] shadow-sm transition-colors"
+                onClick={() => handleShareStamp(selectedStamp)}
+                className="bg-[#06C755] text-white py-2.5 rounded-lg font-title-md text-xs flex items-center justify-center gap-1 hover:bg-[#05b34c] font-bold transition-colors cursor-pointer active:scale-95 shadow-2xs"
               >
-                <span className="material-symbols-outlined text-[16px]">download</span>
-                <span>บันทึกความละเอียดสูง</span>
+                <span className="material-symbols-outlined text-[15px]">share</span>
+                <span>LINE / ลิงก์</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadStampJpg(selectedStamp)}
+                className="bg-[#6f4315] text-white py-2.5 rounded-lg font-title-md text-xs flex items-center justify-center gap-1 hover:bg-[#8b5a2b] font-bold shadow-sm transition-colors cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[15px]">download</span>
+                <span>บันทึก .jpg</span>
               </button>
             </div>
           </div>
@@ -340,6 +456,23 @@ export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onTo
         onSubmit={(newStamp) => {
           onAddStamp(newStamp);
           onToast(`สร้างแสตมป์ "${newStamp.title}" บันทึกลงสมุดเรียบร้อย!`);
+        }}
+      />
+
+      {/* Edit Stamp Modal (ในโปสการ์ดทั้งหมด รวมทั้ง Stamp สามารถ แก้ไขได้) */}
+      <EditStampModal
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setStampToEdit(null);
+        }}
+        stamp={stampToEdit}
+        onSave={(updated) => {
+          onUpdateStamp?.(updated);
+          if (selectedStamp?.id === updated.id) {
+            setSelectedStamp(updated);
+          }
+          onToast(`บันทึกการแก้ไขแสตมป์ "${updated.title}" สำเร็จ!`);
         }}
       />
     </div>

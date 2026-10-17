@@ -17,6 +17,7 @@ interface StampPerforatedFrameProps {
   className?: string;
   isUploaded?: boolean;
   frameStyle?: StampFrameStyle;
+  showPrice?: boolean;
 }
 
 export const StampPerforatedFrame: React.FC<StampPerforatedFrameProps> = ({
@@ -34,6 +35,7 @@ export const StampPerforatedFrame: React.FC<StampPerforatedFrameProps> = ({
   className = '',
   isUploaded = false,
   frameStyle = 'classic',
+  showPrice = false,
 }) => {
   // Dimensions and teeth count based on size
   const teethCountH = size === 'sm' ? 8 : size === 'preview' ? 14 : 10;
@@ -223,12 +225,14 @@ export const StampPerforatedFrame: React.FC<StampPerforatedFrameProps> = ({
             </svg>
           </div>
 
-          {/* Top Denomination Tag */}
-          <div className="absolute top-1 right-1 bg-white/92 px-1.5 py-0.5 rounded shadow-sm border border-[#d5c3b6]/50">
-            <span className="font-label-stamp text-[9px] sm:text-[10px] text-[#6f4315] font-bold leading-none">
-              {price}
-            </span>
-          </div>
+          {/* Top Denomination Tag (ลบออกตามที่ระบุ) */}
+          {showPrice && price && (
+            <div className="absolute top-1 right-1 bg-white/92 px-1.5 py-0.5 rounded shadow-sm border border-[#d5c3b6]/50">
+              <span className="font-label-stamp text-[9px] sm:text-[10px] text-[#6f4315] font-bold leading-none">
+                {price}
+              </span>
+            </div>
+          )}
 
           {/* Authentic Stamp Banner at Bottom */}
           <div
