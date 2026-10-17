@@ -111,36 +111,60 @@ export const StampsView: React.FC<StampsViewProps> = ({ stamps, onAddStamp, onTo
         </div>
 
         {/* 2x2 or responsive postage stamp grid */}
-        <div className="grid grid-cols-2 gap-3.5">
-          {filteredStamps.map((stamp) => (
-            <div
-              key={stamp.id}
-              onClick={() => handleOpenStamp(stamp)}
-              className="group relative bg-[#e3d9c3] rounded p-1.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-[0.98] hover:scale-[1.01]"
-              title="แตะเพื่อดูรายละเอียดแสตมป์"
-            >
-              {/* Stamp Mount Corner Tabs */}
-              <div className="absolute top-0.5 left-0.5 w-2 h-2 bg-[#353021]/40 rounded-tl pointer-events-none" />
-              <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-tr pointer-events-none" />
-              <div className="absolute bottom-0.5 left-0.5 w-2 h-2 bg-[#353021]/40 rounded-bl pointer-events-none" />
-              <div className="absolute bottom-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-br pointer-events-none" />
+        {filteredStamps.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3.5">
+            {filteredStamps.map((stamp) => (
+              <div
+                key={stamp.id}
+                onClick={() => handleOpenStamp(stamp)}
+                className="group relative bg-[#e3d9c3] rounded p-1.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center cursor-pointer transition-transform active:scale-[0.98] hover:scale-[1.01]"
+                title="แตะเพื่อดูรายละเอียดแสตมป์"
+              >
+                {/* Stamp Mount Corner Tabs */}
+                <div className="absolute top-0.5 left-0.5 w-2 h-2 bg-[#353021]/40 rounded-tl pointer-events-none" />
+                <div className="absolute top-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-tr pointer-events-none" />
+                <div className="absolute bottom-0.5 left-0.5 w-2 h-2 bg-[#353021]/40 rounded-bl pointer-events-none" />
+                <div className="absolute bottom-0.5 right-0.5 w-2 h-2 bg-[#353021]/40 rounded-br pointer-events-none" />
 
-              {/* Stamp with Authentic Perforated Frame */}
-              <StampPerforatedFrame
-                imageUrl={stamp.imageUrl}
-                imageAlt={stamp.imageAlt}
-                banner={stamp.banner}
-                price={stamp.price}
-                postmarkStation={stamp.postmarkStation}
-                postmarkDate={stamp.postmarkDate}
-                postmarkType={stamp.postmarkType}
-                serialNumber={stamp.serialNumber}
-                locationName={stamp.locationName}
-                isUploaded={stamp.id.startsWith('stamp-')}
-              />
+                {/* Stamp with Authentic Perforated Frame */}
+                <StampPerforatedFrame
+                  imageUrl={stamp.imageUrl}
+                  imageAlt={stamp.imageAlt}
+                  banner={stamp.banner}
+                  price={stamp.price}
+                  postmarkStation={stamp.postmarkStation}
+                  postmarkDate={stamp.postmarkDate}
+                  postmarkType={stamp.postmarkType}
+                  serialNumber={stamp.serialNumber}
+                  locationName={stamp.locationName}
+                  isUploaded={stamp.id.startsWith('stamp-')}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 px-4 text-center rounded-xl bg-white/70 border border-dashed border-[#d5c3b6] space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-full bg-[#f7edd7] flex items-center justify-center text-[#6f4315]">
+              <span className="material-symbols-outlined text-[26px]">approval</span>
             </div>
-          ))}
-        </div>
+            <div>
+              <h3 className="font-headline-sm text-sm text-[#201b0e] font-bold">
+                ยังไม่มีดวงตราไปรษณียากรสะสม (0 ดวง)
+              </h3>
+              <p className="font-body-sm text-xs text-[#51443a] max-w-sm mx-auto mt-1">
+                บัญชีเริ่มต้นของคุณพร้อมสะสมภาพถ่ายจากการเดินทาง กดปุ่มด้านล่างเพื่อสร้างแสตมป์ดวงแรกด้วยภาพถ่ายจริงของคุณ
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="px-4 py-2 rounded-xl bg-[#6f4315] text-white text-xs font-title-md hover:bg-[#8b5a2b] shadow-sm inline-flex items-center gap-1.5 cursor-pointer font-bold"
+            >
+              <span className="material-symbols-outlined text-[16px]">add_photo_alternate</span>
+              <span>+ สร้างแสตมป์ดวงแรก</span>
+            </button>
+          </div>
+        )}
 
         {/* Album Page Metadata Footer */}
         <div className="mt-3.5 pt-2 flex items-center justify-between text-[#51443a] font-label-coord text-[10px] border-t border-[#ece2cc]">

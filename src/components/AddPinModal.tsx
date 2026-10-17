@@ -1,10 +1,30 @@
-import React, { useState } from 'react';
-import { GlobePin } from '../types';
+import React, { useState, useEffect } from 'react';
+import { GlobePin, PinStyleType } from '../types';
+import {
+  WorldLocation,
+  POPULAR_WORLD_LOCATIONS,
+  searchLocalGazetteer,
+  formatCoordinates,
+} from '../utils/worldLocations';
+
+export interface AddPinInitialData {
+  city?: string;
+  country?: string;
+  region?: string;
+  lat?: number;
+  lng?: number;
+  categoryTag?: string;
+  code?: string;
+  photo?: string;
+  sourceQuery?: string;
+  flag?: string;
+}
 
 interface AddPinModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddPin: (pin: GlobePin) => void;
+  initialData?: AddPinInitialData | null;
 }
 
 const PIN_SUGGESTIONS = [
@@ -14,9 +34,10 @@ const PIN_SUGGESTIONS = [
     region: 'ทัสคานี',
     lat: 43.7696,
     lng: 11.2558,
-    latLngDisplay: '43°46\' N 11°15\' E',
+    latLngDisplay: "43°46' N 11°15' E",
     categoryTag: 'ศิลปะเรเนซองส์',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA5GcEE_8LWB-pR2VcfKlCWeYCmR9wfopjW1RU0OodRIxgCiAOI1SvVQ-NG2TUK91LSFDMcuQtrPHMqOAnTkZoFu25bQqhr2NlJK0V1P8WvsQu0zegNF8cPxWuY1W5CE5TAYW5ZWxdShCtWG4C-0UVvhTIJZg0D7RuhJFrBgKvN0WgTHV4Uha3jo1sXEwKcuuARhp_VQa35p-w5R60dOT3Q3p-WY3sCK4JvXjvku6JcfYkAQtxf05Bl',
+    photo:
+      'https://images.unsplash.com/photo-1543429776-2782fc8e1acd?w=200&auto=format&fit=crop&q=80',
   },
   {
     city: 'Cusco',
@@ -24,9 +45,10 @@ const PIN_SUGGESTIONS = [
     region: 'แอนดีส',
     lat: -13.5319,
     lng: -71.9675,
-    latLngDisplay: '13°31\' S 71°58\' W',
+    latLngDisplay: "13°31' S 71°58' W",
     categoryTag: 'ยอดเขาสูง',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBH3Ni6Nfb9LrPZChUYg8kHeke_9dgpIQzMJN3e2eCvZQEgtYWCjJcrnWkiHCjcR5a94LEY6dm3eMmG1XeCAnLkUnjNwdUEGhYtD0OmYSvYjrMeDSJezAJ3UX7IKcmrFOGG2L2DOTltHhFlh06DCGofEAl-nM_eoyzHYb995678l3JxZSdPo45lDm-gfsGUALlrjdfcqKxRRwcdLLCyJF2YJFU2_fhRsup4wnMHwiMH4U8LaQ-h6he8',
+    photo:
+      'https://images.unsplash.com/photo-1526392060635-9d6019884377?w=200&auto=format&fit=crop&q=80',
   },
   {
     city: 'Paris',
@@ -34,9 +56,10 @@ const PIN_SUGGESTIONS = [
     region: 'อิล-เดอ-ฟร็องส์',
     lat: 48.8566,
     lng: 2.3522,
-    latLngDisplay: '48°51\' N 2°21\' E',
+    latLngDisplay: "48°51' N 2°21' E",
     categoryTag: 'มหานครแห่งแสงไฟ',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD112cvYViX7jpakw7qyuCtkIsfnX1-qttQ-uLdGPFOVFIEpyeXNAi-DlCJEpbqOqEDjgYbPZ0qCcFE1Ba4eb1RfEtwvfnzLwysnnypBspE1t-aHv1twmsG6PL0N1Gm2ldlt-pjZfyGQvKzSDYwNb2MgUpUDTVQlWc9d4YLbBUANB4-Am_dH3S5q44K4Li6OpUAWMwPpd1ZQ7Snmq5HUZhrEST6Cgqd-XH_MhSiq00gjhv02P_Qran4',
+    photo:
+      'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=200&auto=format&fit=crop&q=80',
   },
   {
     city: 'Zermatt',
@@ -44,22 +67,72 @@ const PIN_SUGGESTIONS = [
     region: 'วาเลส์',
     lat: 45.9765,
     lng: 7.7491,
-    latLngDisplay: '45°58\' N 7°44\' E',
+    latLngDisplay: "45°58' N 7°44' E",
     categoryTag: 'แมทเทอร์ฮอร์น',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBurXOEq-L4G6_Htp9hUt5cnNo1KeSITzbAlEaY-si0v2RqdfRFdVaZV1Dr52rzHcg8_pqj4mY4wfN99XIhb5f5NoeY1eRES0aS4a8bAAyQTeKSb1lGvxLbK2BdiF6Ey1ihzMli5lJBGgpv75BWVXLJ5BZnVu4PJLaMxvAeqVBc9ZdQfQ0jykfop5JzJOTXwsF7ZP3HY6xwWzoI9FZocSIBfri8_k561Jn8-MVo52lsE9ZnRy7wA5A6',
+    photo:
+      'https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=200&auto=format&fit=crop&q=80',
   },
 ];
 
-export const AddPinModal: React.FC<AddPinModalProps> = ({ isOpen, onClose, onAddPin }) => {
+export const AddPinModal: React.FC<AddPinModalProps> = ({
+  isOpen,
+  onClose,
+  onAddPin,
+  initialData,
+}) => {
   const [city, setCity] = useState('');
   const [country, setCountry] = useState('');
   const [region, setRegion] = useState('');
-  const [lat, setLat] = useState('35.6762');
-  const [lng, setLng] = useState('139.6503');
+  const [lat, setLat] = useState('13.7563');
+  const [lng, setLng] = useState('100.5018');
   const [tag, setTag] = useState('การค้นพบใหม่');
+  const [code, setCode] = useState('');
+  const [flag, setFlag] = useState('📍');
 
-  const [pinStyle, setPinStyle] = useState<'dot' | 'flag' | 'needle'>('dot');
+  const [pinStyle, setPinStyle] = useState<PinStyleType>('dot');
   const [pinColor, setPinColor] = useState('#ffb703');
+
+  // Quick In-Modal Search state
+  const [modalSearch, setModalSearch] = useState('');
+  const [modalResults, setModalResults] = useState<WorldLocation[]>([]);
+  const [showResultsDropdown, setShowResultsDropdown] = useState(false);
+
+  // Link and populate all searched data completely when modal opens or initialData changes
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setCity(initialData.city || '');
+        setCountry(initialData.country || '');
+        setRegion(initialData.region || 'พิกัดโลกจริง');
+        if (initialData.lat !== undefined) {
+          setLat(initialData.lat.toFixed(4));
+        }
+        if (initialData.lng !== undefined) {
+          setLng(initialData.lng.toFixed(4));
+        }
+        if (initialData.categoryTag) {
+          setTag(initialData.categoryTag);
+        }
+        if (initialData.code) {
+          setCode(initialData.code);
+        }
+        if (initialData.flag) {
+          setFlag(initialData.flag);
+        }
+        setModalSearch('');
+      } else {
+        // Fallback default
+        setCity('Bangkok');
+        setCountry('Thailand');
+        setRegion('เมืองหลวง / มหานคร');
+        setLat('13.7563');
+        setLng('100.5018');
+        setTag('จุดเริ่มต้นการสำรวจ');
+        setCode('TH');
+        setFlag('🇹🇭');
+      }
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -72,76 +145,188 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({ isOpen, onClose, onAdd
     setTag(s.categoryTag);
   };
 
+  const handleSelectLocationFromSearch = (loc: WorldLocation) => {
+    setCity(loc.nameTh || loc.name);
+    setCountry(loc.countryTh || loc.country);
+    setRegion(loc.category || 'พิกัดโลกจริง');
+    setLat(loc.lat.toFixed(4));
+    setLng(loc.lng.toFixed(4));
+    setTag(loc.category || 'พิกัดสำรวจ');
+    setCode(loc.code || 'LOC');
+    setFlag(loc.flag || '📍');
+    setModalSearch('');
+    setShowResultsDropdown(false);
+  };
+
+  const handleModalSearchChange = (val: string) => {
+    setModalSearch(val);
+    if (!val.trim()) {
+      setModalResults([]);
+      setShowResultsDropdown(false);
+      return;
+    }
+    const matches = searchLocalGazetteer(val.trim());
+    setModalResults(matches);
+    setShowResultsDropdown(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedLat = parseFloat(lat) || 0;
     const parsedLng = parseFloat(lng) || 0;
+    const generatedCode =
+      code || `${country.slice(0, 2).toUpperCase()}-${Math.floor(Math.random() * 800 + 100)}`;
+
     const newPin: GlobePin = {
       id: `pin-${Date.now()}`,
-      code: `${country.slice(0, 2).toUpperCase()}-${Math.floor(Math.random() * 800 + 100)}`,
+      code: generatedCode,
       city: city || 'เมืองใหม่',
       country: country || 'จุดหมายปลายทาง',
       region: region || 'พิกัดสำรวจ',
-      date: new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }),
+      date: new Date().toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
       lat: parsedLat,
       lng: parsedLng,
-      latLngDisplay: `${Math.abs(parsedLat).toFixed(2)}° ${parsedLat >= 0 ? 'N' : 'S'} ${Math.abs(parsedLng).toFixed(2)}° ${parsedLng >= 0 ? 'E' : 'W'}`,
+      latLngDisplay: formatCoordinates(parsedLat, parsedLng),
       categoryTag: tag,
       isStamped: true,
       memoriesCount: 1,
-      imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB_Rv0V0ae3W7nM_AbnXsH1SnByRSLexfp_03QIOUchw4IjugOmAZgr8oGYod1MMlV9Wqyc1wanOPSmKkTr7_nIxgAoi8dMbAMP9TmGdE553JujxtieQi1SgcLYJ5i_ZvENh125mt2oBMObY0w8o9Kf4zZsSU36BPOSMr6IHHW6LbR3x3EqUfzI8HuaegWLHoAKtLJaYhCad2VEszC-HeG1V3TEbhZTq0OvylaPOuD1OYI1afGZLTUi',
+      imageUrl:
+        initialData?.photo ||
+        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&auto=format&fit=crop&q=80',
       status: 'VERIFIED',
       pinStyle,
       pinColor,
     };
+
     onAddPin(newPin);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#201b0e]/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-md bg-[#fff8f0] rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-[#d5c3b6]">
+    <div className="fixed inset-0 z-50 bg-[#201b0e]/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+      <div className="w-full max-w-lg bg-[#fffdfa] rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl border border-[#d5c3b6] max-h-[92vh] overflow-y-auto">
         <div className="w-12 h-1 bg-[#d5c3b6] rounded-full mx-auto mb-3 sm:hidden" />
 
+        {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#ece2cc]">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#6f4315] text-[22px]">
-              add_location_alt
-            </span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#6f4315] text-white flex items-center justify-center shadow-xs">
+              <span className="material-symbols-outlined text-[20px]">add_location_alt</span>
+            </div>
             <div>
-              <h3 className="font-headline-sm text-[16px] text-[#6f4315] font-semibold">
+              <h3 className="font-headline-sm text-[16px] text-[#6f4315] font-bold">
                 ปักหมุดพิกัดสำรวจโลก
               </h3>
-              <p className="font-label-coord text-[10px] text-[#837469] uppercase">
-                Add Expedition Waypoint
+              <p className="font-label-coord text-[10px] text-[#837469] uppercase font-semibold">
+                Expedition Waypoint Marker
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-full text-[#51443a] hover:bg-[#ece2cc]">
-            <span className="material-symbols-outlined">close</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full text-[#51443a] hover:bg-[#ece2cc] flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
         </div>
 
-        {/* Quick Suggestions */}
-        <div className="mt-3">
-          <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
-            เลือกจากจุดหมายยอดนิยม
+        {/* Linked Search Information Banner (ลิ้งค์ข้อมูลจากการค้นหามาใส่ให้ครบถ้วน) */}
+        {initialData && (initialData.city || initialData.lat !== undefined) && (
+          <div className="mt-3 p-3 bg-[#fdf3dc] border border-[#d4af37]/70 rounded-xl flex items-center justify-between shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-2xl shrink-0">{flag}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="font-label-coord text-[8px] bg-[#6f4315] text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                    ลิ้งค์จากการค้นหา 100%
+                  </span>
+                  <span className="font-label-coord text-[9px] text-[#6f4315] font-bold truncate">
+                    {region}
+                  </span>
+                </div>
+                <h4 className="font-headline-sm text-xs text-[#201b0e] font-bold truncate">
+                  {city} {country && `• ${country}`}
+                </h4>
+              </div>
+            </div>
+            <div className="text-right shrink-0 ml-2">
+              <span className="font-label-coord text-[9px] text-[#465f88] font-bold block bg-white/80 px-2 py-0.5 rounded border border-[#ece2cc]">
+                {formatCoordinates(parseFloat(lat) || 0, parseFloat(lng) || 0)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Live Search to change location immediately inside modal */}
+        <div className="mt-3 relative">
+          <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+            ค้นหาเปลี่ยนสถานที่ (ค้นหาเจอ 100% ลิ้งค์พิกัดจริง)
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2.5 top-2 text-[#6f4315] text-[16px]">
+              search
+            </span>
+            <input
+              type="text"
+              placeholder="ค้นหาประเทศ เมือง หรือสถานที่เพื่อดึงข้อมูลพิกัดอัตโนมัติ..."
+              value={modalSearch}
+              onChange={(e) => handleModalSearchChange(e.target.value)}
+              onFocus={() => {
+                if (modalResults.length > 0) setShowResultsDropdown(true);
+              }}
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e] focus:outline-none focus:ring-1 focus:ring-[#6f4315]"
+            />
+          </div>
+
+          {/* Autocomplete Dropdown inside Modal */}
+          {showResultsDropdown && modalResults.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-[#d5c3b6] z-30 max-h-48 overflow-y-auto divide-y divide-[#ece2cc]">
+              {modalResults.slice(0, 6).map((loc) => (
+                <div
+                  key={loc.id}
+                  onClick={() => handleSelectLocationFromSearch(loc)}
+                  className="p-2 hover:bg-[#fff8f0] flex items-center justify-between cursor-pointer transition-colors text-xs"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="text-base">{loc.flag}</span>
+                    <span className="font-semibold text-[#201b0e] truncate">
+                      {loc.nameTh || loc.name}, {loc.countryTh || loc.country}
+                    </span>
+                  </div>
+                  <span className="font-label-coord text-[9px] text-[#465f88] font-bold shrink-0 ml-2">
+                    {formatCoordinates(loc.lat, loc.lng)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Quick Suggestions Chips */}
+        <div className="mt-3">
+          <label className="font-label-coord text-[9px] text-[#837469] uppercase block mb-1 font-bold">
+            หรือเลือกพิกัดสำรวจยอดนิยม
+          </label>
+          <div className="grid grid-cols-2 gap-1.5">
             {PIN_SUGGESTIONS.map((s) => (
               <button
                 key={s.city}
                 type="button"
                 onClick={() => handleSelectSuggestion(s)}
-                className="p-2 text-left bg-white rounded-lg border border-[#d5c3b6]/70 hover:border-[#6f4315] hover:bg-[#fdf3dc] transition-all flex items-center gap-2"
+                className="p-1.5 text-left bg-white rounded-lg border border-[#d5c3b6]/70 hover:border-[#6f4315] hover:bg-[#fdf3dc] transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
               >
-                <img src={s.photo} alt={s.city} className="w-8 h-8 rounded object-cover" />
-                <div className="truncate">
-                  <span className="font-title-md text-xs text-[#201b0e] block truncate">
+                <img src={s.photo} alt={s.city} className="w-7 h-7 rounded object-cover shrink-0" />
+                <div className="truncate min-w-0">
+                  <span className="font-title-md text-xs text-[#201b0e] font-bold block truncate">
                     {s.city}
                   </span>
-                  <span className="font-label-coord text-[9px] text-[#837469] truncate">
-                    {s.country}
+                  <span className="font-label-coord text-[9px] text-[#837469] truncate block">
+                    {s.country} • {s.region}
                   </span>
                 </div>
               </button>
@@ -149,125 +334,142 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({ isOpen, onClose, onAdd
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+        {/* Main Pin Form - All fields filled in completely */}
+        <form onSubmit={handleSubmit} className="mt-3.5 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
-                เมือง (City)
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+                เมือง / สถานที่ (City / Spot)
               </label>
               <input
                 type="text"
-                placeholder="เช่น Kyoto, Rome"
+                placeholder="เช่น กรุงเทพฯ, โตเกียว"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 required
-                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6]"
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e] font-medium"
               />
             </div>
             <div>
-              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
                 ประเทศ (Country)
               </label>
               <input
                 type="text"
-                placeholder="เช่น Japan, Italy"
+                placeholder="เช่น ไทย, ญี่ปุ่น"
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 required
-                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6]"
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e] font-medium"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
-                ละติจูด (Lat)
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+                ภูมิภาค / เขต (Region)
+              </label>
+              <input
+                type="text"
+                placeholder="เช่น เอเชียตะวันออกเฉียงใต้"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e]"
+              />
+            </div>
+            <div>
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+                ป้ายกำกับ (Category Tag)
+              </label>
+              <input
+                type="text"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#201b0e]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+                ละติจูดจริง (Latitude)
               </label>
               <input
                 type="text"
                 value={lat}
                 onChange={(e) => setLat(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6]"
+                required
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#465f88] font-bold"
               />
             </div>
             <div>
-              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
-                ลองจิจูด (Lng)
+              <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1 font-bold">
+                ลองจิจูดจริง (Longitude)
               </label>
               <input
                 type="text"
                 value={lng}
                 onChange={(e) => setLng(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6]"
+                required
+                className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6] text-[#465f88] font-bold"
               />
             </div>
           </div>
 
-          <div>
-            <label className="font-label-coord text-[10px] text-[#837469] uppercase block mb-1">
-              ป้ายกำกับความทรงจำ (Tag)
-            </label>
-            <input
-              type="text"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs bg-white rounded-lg border border-[#d5c3b6]"
-            />
-          </div>
-
           {/* Pin Style & Appearance Selector */}
-          <div className="p-3 rounded-xl bg-[#fdf3dc] border border-[#d5c3b6]/60 space-y-2.5">
+          <div className="p-2.5 rounded-xl bg-[#fdf3dc] border border-[#d5c3b6]/70 space-y-2">
             <label className="font-label-coord text-[10px] text-[#6f4315] uppercase font-bold block">
-              ลักษณะของหมุด (Pin Style)
+              ลักษณะของหมุดบนลูกโลก (Pin Style & Color)
             </label>
-            
+
             {/* Style Choices */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
                 onClick={() => setPinStyle('dot')}
-                className={`py-2 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-1 border transition-all cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-0.5 border transition-all cursor-pointer ${
                   pinStyle === 'dot'
                     ? 'bg-[#6f4315] text-white border-[#6f4315] shadow-xs'
                     : 'bg-white text-[#51443a] border-[#d5c3b6] hover:bg-[#fff8f0]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">radio_button_checked</span>
-                <span className="text-[11px] font-semibold">จุดสีกระพริบ</span>
+                <span className="material-symbols-outlined text-[17px]">radio_button_checked</span>
+                <span className="text-[10px] font-semibold">จุดสีกระพริบ</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPinStyle('flag')}
-                className={`py-2 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-1 border transition-all cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-0.5 border transition-all cursor-pointer ${
                   pinStyle === 'flag'
                     ? 'bg-[#6f4315] text-white border-[#6f4315] shadow-xs'
                     : 'bg-white text-[#51443a] border-[#d5c3b6] hover:bg-[#fff8f0]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">flag</span>
-                <span className="text-[11px] font-semibold">ธงปักหลัก</span>
+                <span className="material-symbols-outlined text-[17px]">flag</span>
+                <span className="text-[10px] font-semibold">ธงปักหลัก</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPinStyle('needle')}
-                className={`py-2 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-1 border transition-all cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-xs font-title-md flex flex-col items-center gap-0.5 border transition-all cursor-pointer ${
                   pinStyle === 'needle'
                     ? 'bg-[#6f4315] text-white border-[#6f4315] shadow-xs'
                     : 'bg-white text-[#51443a] border-[#d5c3b6] hover:bg-[#fff8f0]'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">push_pin</span>
-                <span className="text-[11px] font-semibold">หมุดแผนที่</span>
+                <span className="material-symbols-outlined text-[17px]">push_pin</span>
+                <span className="text-[10px] font-semibold">หมุดแผนที่</span>
               </button>
             </div>
 
             {/* Color Palette Choices */}
-            <div>
-              <span className="font-label-coord text-[9px] text-[#837469] block mb-1">
-                เลือกสีหมุด (Pin Color):
+            <div className="pt-1 flex items-center justify-between">
+              <span className="font-label-coord text-[9px] text-[#837469] font-semibold">
+                สีของหมุด:
               </span>
               <div className="flex items-center gap-2">
                 {[
@@ -282,7 +484,7 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({ isOpen, onClose, onAdd
                     type="button"
                     onClick={() => setPinColor(item.color)}
                     style={{ backgroundColor: item.color }}
-                    className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer hover:scale-110 ${
+                    className={`w-5 h-5 rounded-full border-2 transition-transform cursor-pointer hover:scale-110 ${
                       pinColor === item.color
                         ? 'border-[#201b0e] ring-2 ring-[#ffdea5] scale-110'
                         : 'border-white/80 opacity-80'
@@ -294,19 +496,20 @@ export const AddPinModal: React.FC<AddPinModalProps> = ({ isOpen, onClose, onAdd
             </div>
           </div>
 
-          <div className="pt-2 flex justify-end gap-2 border-t border-[#ece2cc]">
+          <div className="pt-2.5 flex justify-end gap-2 border-t border-[#ece2cc]">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 text-xs font-title-md text-[#51443a] hover:bg-[#ece2cc] rounded-lg"
+              className="px-3.5 py-2 text-xs font-title-md text-[#51443a] hover:bg-[#ece2cc] rounded-lg cursor-pointer"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-xs font-title-md bg-[#6f4315] text-white rounded-lg shadow hover:bg-[#8b5a2b]"
+              className="px-4 py-2 text-xs font-title-md bg-[#6f4315] text-white rounded-lg shadow-sm hover:bg-[#8b5a2b] font-bold cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
             >
-              + บันทึกหมุดลงแผนที่โลก
+              <span className="material-symbols-outlined text-[16px]">add_location</span>
+              <span>+ บันทึกปักหมุดลงแผนที่โลก</span>
             </button>
           </div>
         </form>

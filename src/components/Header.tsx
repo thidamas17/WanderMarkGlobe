@@ -6,6 +6,7 @@ import appLogo from '../assets/logo.svg';
 interface HeaderProps {
   activeTab: TabType;
   userProfile?: UserProfile;
+  isRegistered?: boolean;
   onProfileClick?: () => void;
   onSignUpClick?: () => void;
 }
@@ -13,6 +14,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   userProfile,
+  isRegistered = true,
   onProfileClick,
   onSignUpClick,
 }) => {
@@ -58,39 +60,53 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Explorer Profile Badge & Sign Up button */}
         <div className="flex items-center gap-2">
-          {onSignUpClick && (
+          {!isRegistered ? (
             <button
               type="button"
               onClick={onSignUpClick}
-              className="hidden xs:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fdf3dc] text-[#6f4315] text-[11px] font-label-coord font-semibold border border-[#d5c3b6]/70 hover:bg-[#ffdea5]/50 transition-colors cursor-pointer"
-              title="สมัครสมาชิกนักสำรวจใหม่"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#6f4315] text-white text-[11px] font-label-coord font-bold shadow-sm hover:bg-[#8b5a2b] transition-colors cursor-pointer animate-pulse"
+              title="ลงทะเบียนใช้งานครั้งแรก"
             >
-              <span className="material-symbols-outlined text-[14px]">person_add</span>
-              <span>สมัครสมาชิก</span>
+              <span className="material-symbols-outlined text-[14px]">how_to_reg</span>
+              <span>ลงทะเบียนใช้งาน</span>
             </button>
-          )}
+          ) : (
+            <>
+              {onSignUpClick && (
+                <button
+                  type="button"
+                  onClick={onSignUpClick}
+                  className="hidden xs:flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fdf3dc] text-[#6f4315] text-[11px] font-label-coord font-semibold border border-[#d5c3b6]/70 hover:bg-[#ffdea5]/50 transition-colors cursor-pointer"
+                  title="สมัครสมาชิกนักสำรวจใหม่"
+                >
+                  <span className="material-symbols-outlined text-[14px]">person_add</span>
+                  <span>สมัครสมาชิก</span>
+                </button>
+              )}
 
-          <div
-            onClick={onProfileClick}
-            className="flex items-center gap-1.5 cursor-pointer group"
-            title={`โปรไฟล์: ${userProfile?.fullName || 'นักสำรวจ'}`}
-          >
-            <div className="hidden sm:flex flex-col text-right mr-0.5">
-              <span className="font-label-coord text-[9px] text-[#837469] uppercase">
-                {userProfile?.username ? `@${userProfile.username}` : 'นักสำรวจ'}
-              </span>
-              <span className="font-label-stamp text-[10px] text-[#6f4315] font-bold">
-                {userProfile?.docId || 'WM-2024'}
-              </span>
-            </div>
-            <div className="p-0.5 rounded-full bg-[#ece2cc] shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] ring-2 ring-[#ffdcc1]/70 group-hover:scale-105 active:scale-95 transition-transform">
-              <img
-                alt={userProfile?.fullName || 'Explorer Profile'}
-                className="w-8 h-8 rounded-full object-cover"
-                src={userProfile?.avatarUrl || APP_LOGO_URL}
-              />
-            </div>
-          </div>
+              <div
+                onClick={onProfileClick}
+                className="flex items-center gap-1.5 cursor-pointer group"
+                title={`โปรไฟล์: ${userProfile?.fullName || 'นักสำรวจ'}`}
+              >
+                <div className="hidden sm:flex flex-col text-right mr-0.5">
+                  <span className="font-label-coord text-[9px] text-[#837469] uppercase">
+                    {userProfile?.username ? `@${userProfile.username}` : 'นักสำรวจ'}
+                  </span>
+                  <span className="font-label-stamp text-[10px] text-[#6f4315] font-bold">
+                    {userProfile?.docId || 'WM-2024'}
+                  </span>
+                </div>
+                <div className="p-0.5 rounded-full bg-[#ece2cc] shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] ring-2 ring-[#ffdcc1]/70 group-hover:scale-105 active:scale-95 transition-transform">
+                  <img
+                    alt={userProfile?.fullName || 'Explorer Profile'}
+                    className="w-8 h-8 rounded-full object-cover"
+                    src={userProfile?.avatarUrl || APP_LOGO_URL}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </header>

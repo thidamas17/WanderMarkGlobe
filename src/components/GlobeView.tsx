@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { GlobePin, PinStyleType, TabType } from '../types';
-import { AddPinModal } from './AddPinModal';
+import { AddPinModal, AddPinInitialData } from './AddPinModal';
 import {
   EARTH_TEXTURE_URLS,
   loadEarthTexture,
@@ -9,6 +9,13 @@ import {
   createGraticulesGroup,
   latLngToVector3,
 } from '../utils/earthTextures';
+import {
+  WorldLocation,
+  POPULAR_WORLD_LOCATIONS,
+  searchLocalGazetteer,
+  searchWorldwideGeocode,
+  formatCoordinates,
+} from '../utils/worldLocations';
 
 interface GlobeViewProps {
   pins: GlobePin[];
@@ -170,7 +177,12 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
   const [showGraticules, setShowGraticules] = useState<boolean>(true);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<WorldLocation[]>([]);
+  const [activeTargetSpot, setActiveTargetSpot] = useState<WorldLocation | null>(null);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [isAddPinOpen, setIsAddPinOpen] = useState<boolean>(false);
+  const [pinModalInitialData, setPinModalInitialData] = useState<AddPinInitialData | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(2.55);
 
@@ -180,6 +192,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const globeGroupRef = useRef<THREE.Group | null>(null);
   const pinsGroupRef = useRef<THREE.Group | null>(null);
+  const targetBeaconGroupRef = useRef<THREE.Group | null>(null);
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
   const cloudsMeshRef = useRef<THREE.Mesh | null>(null);
   const graticulesGroupRef = useRef<THREE.Group | null>(null);
@@ -234,24 +247,187 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
 
   const handleSelectPin = (pin: GlobePin) => {
     setSelectedPin(pin);
+    setActiveTargetSpot(null);
     focusOnCoordinates(pin.lat, pin.lng);
     onToast(`พิกัด: ${pin.city}, ${pin.country} (${pin.latLngDisplay})`);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    const found = pins.find(
+  // Select a 100% matched real-world location and link/rotate directly on 3D Earth
+  const handleSelectLocation = useCallback(
+    (loc: WorldLocation) => {
+      setActiveTargetSpot(loc);
+      setSelectedPin(null);
+      setSearchQuery(`${loc.nameTh || loc.name} (${loc.countryTh || loc.country})`);
+      setShowDropdown(false);
+      focusOnCoordinates(loc.lat, loc.lng);
+      onToast(
+        `หมุนโลกไปยังพิกัดจริง: ${loc.nameTh || loc.name} • ${formatCoordinates(loc.lat, loc.lng)}`
+      );
+    },
+    [focusOnCoordinates, onToast]
+  );
+
+  // Directly pin a searched location into the user's explorer log
+  const handlePinFoundLocation = (loc: WorldLocation) => {
+    const newPin: GlobePin = {
+      id: `pin-${Date.now()}`,
+      code: loc.code || 'LOC',
+      city: loc.nameTh || loc.name,
+      country: loc.countryTh || loc.country,
+      region: loc.category,
+      date: new Date().toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }),
+      lat: loc.lat,
+      lng: loc.lng,
+      latLngDisplay: formatCoordinates(loc.lat, loc.lng),
+      categoryTag: loc.category,
+      isStamped: true,
+      memoriesCount: 1,
+      imageUrl:
+        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=200&auto=format&fit=crop&q=80',
+      status: 'VERIFIED',
+      pinStyle: globalPinStyle,
+      pinColor: globalPinColor,
+    };
+
+    onAddPin(newPin);
+    setSelectedPin(newPin);
+    setActiveTargetSpot(null);
+    onToast(`ปักหมุดสำเร็จ: ${newPin.city}, ${newPin.country} พิกัด ${newPin.latLngDisplay}`);
+  };
+
+  // Open Add Pin Modal with completely linked search data (เมื่อกดปักหมุด ให้ลิ้งค์ข้อมูลของการค้นหาต่างๆไปใส่ให้ครบถ้วน)
+  const handleOpenAddPin = useCallback(() => {
+    let targetData: AddPinInitialData | null = null;
+
+    if (activeTargetSpot) {
+      targetData = {
+        city: activeTargetSpot.nameTh || activeTargetSpot.name,
+        country: activeTargetSpot.countryTh || activeTargetSpot.country,
+        region: activeTargetSpot.category || 'พิกัดโลกจริง 100%',
+        lat: activeTargetSpot.lat,
+        lng: activeTargetSpot.lng,
+        categoryTag: activeTargetSpot.category || 'พิกัดสำรวจโลกจริง',
+        code: activeTargetSpot.code,
+        flag: activeTargetSpot.flag,
+        sourceQuery: activeTargetSpot.nameTh || activeTargetSpot.name,
+      };
+    } else if (searchQuery.trim()) {
+      const q = searchQuery.trim();
+      const local = searchLocalGazetteer(q);
+      if (local.length > 0) {
+        const item = local[0];
+        targetData = {
+          city: item.nameTh || item.name,
+          country: item.countryTh || item.country,
+          region: item.category || 'พิกัดโลกจริง',
+          lat: item.lat,
+          lng: item.lng,
+          categoryTag: item.category || 'พิกัดสำรวจ',
+          code: item.code,
+          flag: item.flag,
+          sourceQuery: q,
+        };
+      } else {
+        const parts = q.split(/[,/—\-]+/).map((s) => s.trim()).filter(Boolean);
+        targetData = {
+          city: parts[0] || q,
+          country: parts[1] || 'สากล (Global)',
+          region: 'พิกัดสำรวจใหม่',
+          lat: 13.7563,
+          lng: 100.5018,
+          categoryTag: 'การค้นพบใหม่',
+          sourceQuery: q,
+        };
+      }
+    } else if (selectedPin) {
+      targetData = {
+        city: selectedPin.city,
+        country: selectedPin.country,
+        region: selectedPin.region,
+        lat: selectedPin.lat,
+        lng: selectedPin.lng,
+        categoryTag: selectedPin.categoryTag,
+        code: selectedPin.code,
+      };
+    }
+
+    setPinModalInitialData(targetData);
+    setIsAddPinOpen(true);
+  }, [activeTargetSpot, searchQuery, selectedPin]);
+
+  // Handle live search input change (Instant local gazetteer + debounced 100% geocoding)
+  const handleQueryChange = (val: string) => {
+    setSearchQuery(val);
+    const trimmed = val.trim();
+    if (!trimmed) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    // 1. Instant match in local gazetteer
+    const local = searchLocalGazetteer(trimmed);
+
+    // Also include any user pins matching
+    const matchingPins: WorldLocation[] = pins
+      .filter(
+        (p) =>
+          p.city.toLowerCase().includes(trimmed.toLowerCase()) ||
+          p.country.toLowerCase().includes(trimmed.toLowerCase()) ||
+          p.code.toLowerCase() === trimmed.toLowerCase()
+      )
+      .map((p) => ({
+        id: p.id,
+        name: p.city,
+        nameTh: p.city,
+        country: p.country,
+        countryTh: p.country,
+        code: p.code,
+        lat: p.lat,
+        lng: p.lng,
+        flag: '📍',
+        category: 'หมุดของคุณ',
+      }));
+
+    const combined = [...matchingPins, ...local];
+    setSearchResults(combined);
+    setShowDropdown(true);
+  };
+
+  // 100% Accurate Search Submit: searches gazetteer, user pins, and live worldwide geocoding
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    setIsSearching(true);
+
+    // 1. Check user pins
+    const pinMatch = pins.find(
       (p) =>
-        p.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.code.toLowerCase().includes(searchQuery.toLowerCase())
+        p.city.toLowerCase().includes(query.toLowerCase()) ||
+        p.country.toLowerCase().includes(query.toLowerCase()) ||
+        p.code.toLowerCase() === query.toLowerCase()
     );
-    if (found) {
-      handleSelectPin(found);
+    if (pinMatch) {
+      handleSelectPin(pinMatch);
+      setIsSearching(false);
+      setShowDropdown(false);
+      return;
+    }
+
+    // 2. Query 100% Worldwide Geocoding and Gazetteer
+    const results = await searchWorldwideGeocode(query);
+    setIsSearching(false);
+
+    if (results.length > 0) {
+      handleSelectLocation(results[0]);
     } else {
-      onToast(`ไม่พบ "${searchQuery}" กด "+ ปักหมุด" เพื่อเพิ่มพิกัดใหม่ได้ทันที`);
-      setIsAddPinOpen(true);
+      onToast(`ค้นหา "${query}" ไม่พบพิกัด กรุณาลองใช้ชื่อเมืองหรือประเทศ`);
     }
   };
 
@@ -594,6 +770,69 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
     flightArcsRef.current = arcLines;
   }, [pins, globalPinStyle, globalPinColor, selectedPin]);
 
+  // Re-build Target Beacon inside targetBeaconGroup whenever activeTargetSpot changes
+  useEffect(() => {
+    if (!targetBeaconGroupRef.current) return;
+    const group = targetBeaconGroupRef.current;
+
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if ((child as THREE.Mesh).geometry) {
+        (child as THREE.Mesh).geometry.dispose();
+      }
+    }
+
+    if (!activeTargetSpot) return;
+
+    const earthRadius = 1.0;
+    const pos = latLngToVector3(activeTargetSpot.lat, activeTargetSpot.lng, earthRadius * 1.008);
+    const normal = pos.clone().normalize();
+
+    const beacon = new THREE.Group();
+    beacon.position.copy(pos);
+
+    // Glowing Radar Target Rings
+    const ringGeo = new THREE.RingGeometry(0.018, 0.038, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    beacon.add(ring);
+
+    // Inner ruby pulse core
+    const coreGeo = new THREE.CircleGeometry(0.012, 24);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xef233c,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.position.z = 0.001;
+    beacon.add(core);
+
+    // Pin needle stem
+    const needleStemGeo = new THREE.CylinderGeometry(0.002, 0.002, 0.045, 12);
+    const needleStemMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const stem = new THREE.Mesh(needleStemGeo, needleStemMat);
+    stem.position.y = 0.022;
+
+    const pinSubGroup = new THREE.Group();
+    pinSubGroup.add(stem);
+    pinSubGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+
+    beacon.lookAt(new THREE.Vector3(0, 0, 0));
+    group.add(beacon);
+    group.add(pinSubGroup);
+  }, [activeTargetSpot]);
+
   // Initialize Three.js 3D Globe scene
   useEffect(() => {
     const container = containerRef.current;
@@ -692,6 +931,11 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
     globeGroup.add(graticulesGroup);
     graticulesGroupRef.current = graticulesGroup;
 
+    // 10. 100% Real-World Target Beacon Group
+    const targetBeaconGroup = new THREE.Group();
+    globeGroup.add(targetBeaconGroup);
+    targetBeaconGroupRef.current = targetBeaconGroup;
+
     // 12. Animation Loop
     let animationFrameId: number;
     const clock = new THREE.Clock();
@@ -754,6 +998,20 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
         const mat = arc.material as THREE.LineDashedMaterial;
         mat.scale = 1 + Math.sin(time * 2 + i) * 0.12;
       });
+
+      // Animate Target Beacon pulse
+      if (targetBeaconGroupRef.current && targetBeaconGroupRef.current.children.length > 0) {
+        const beacon = targetBeaconGroupRef.current.children[0] as THREE.Group;
+        if (beacon && beacon.children[0]) {
+          const ring = beacon.children[0] as THREE.Mesh;
+          const wave = (Math.sin(time * 5) + 1) * 0.5;
+          const s = 1.0 + wave * 0.35;
+          ring.scale.set(s, s, 1);
+          if (ring.material) {
+            (ring.material as THREE.MeshBasicMaterial).opacity = 0.45 + wave * 0.5;
+          }
+        }
+      }
 
       renderer.render(scene, camera);
     };
@@ -957,7 +1215,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
             <div className="absolute bottom-3 right-3 z-10">
               <button
                 type="button"
-                onClick={() => setIsAddPinOpen(true)}
+                onClick={handleOpenAddPin}
                 className="w-10 h-10 rounded-full bg-[#6f4315] hover:bg-[#8b5a2b] text-white border border-[#ffd700]/70 shadow-xl flex items-center justify-center active:scale-90 transition-all cursor-pointer hover:scale-105"
                 title="ปักหมุดการเดินทาง"
               >
@@ -965,6 +1223,53 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
                   add_location_alt
                 </span>
               </button>
+            </div>
+          )}
+
+          {/* Floating Glassmorphism Target Location Card (Shown when a 100% real location is searched) */}
+          {activeTargetSpot && !selectedPin && (
+            <div className="absolute bottom-3 inset-x-3 bg-[#1e1913]/94 text-white backdrop-blur-xl rounded-xl p-3 shadow-2xl border border-[#ffdea5]/60 flex items-center justify-between transition-all duration-300 z-10 animate-in fade-in slide-in-from-bottom-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-lg bg-[#ffdea5]/20 border border-[#ffdea5]/50 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+                  {activeTargetSpot.flag}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="font-label-coord text-[8px] bg-[#ffdea5] text-[#261900] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                      พิกัดโลกจริง 100%
+                    </span>
+                    <span className="font-label-coord text-[9px] text-[#ffd700] font-semibold truncate">
+                      {activeTargetSpot.category}
+                    </span>
+                  </div>
+                  <h3 className="font-headline-sm text-sm text-[#ffdea5] font-bold leading-tight truncate">
+                    {activeTargetSpot.nameTh || activeTargetSpot.name}, {activeTargetSpot.countryTh || activeTargetSpot.country}
+                  </h3>
+                  <p className="font-label-coord text-[10px] text-[#e0d6c3] font-semibold mt-0.5 truncate">
+                    LAT/LNG: {formatCoordinates(activeTargetSpot.lat, activeTargetSpot.lng)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handlePinFoundLocation(activeTargetSpot)}
+                  className="px-3 py-2 rounded-lg bg-[#ffdea5] text-[#261900] hover:bg-[#ffe7be] active:scale-95 transition-all font-title-md text-xs font-bold shadow-md cursor-pointer flex items-center gap-1"
+                  title="บันทึกปักหมุดพิกัดนี้ทันที"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add_location</span>
+                  <span>ปักหมุดที่นี่</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTargetSpot(null)}
+                  className="w-7 h-7 rounded-lg text-white/70 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors"
+                  title="ปิดการแสดงผล"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1043,36 +1348,135 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
               explore
             </span>
             <span className="font-label-coord text-[11px] text-[#6f4315] font-bold">
-              {selectedPin?.latLngDisplay || "35°41' N • 139°41' E"}
+              {activeTargetSpot
+                ? `${formatCoordinates(activeTargetSpot.lat, activeTargetSpot.lng)} • ${activeTargetSpot.nameTh || activeTargetSpot.name}`
+                : selectedPin?.latLngDisplay || "35°41' N • 139°41' E"}
             </span>
           </button>
         </div>
       </div>
 
-      {/* Modern Search & Pin Bar */}
-      <div className="px-4 mt-3">
+      {/* Modern Search & Pin Bar (ค้นหาเจอ 100% ลิ้งค์กับตำแหน่งจริงของโลก) */}
+      <div className="px-4 mt-3 relative">
         <form onSubmit={handleSearch} className="flex items-center gap-2">
           <div className="relative flex-1">
-            <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#837469] text-[18px]">
-              search
+            <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#6f4315] text-[18px]">
+              {isSearching ? 'travel_explore' : 'search'}
             </span>
             <input
               type="text"
-              placeholder="ค้นหาประเทศหรือเมืองเพื่อปักหมุด..."
+              placeholder="ค้นหาประเทศ เมือง หรือสถานที่"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white rounded-xl border border-[#d5c3b6] text-[#201b0e] focus:outline-none focus:ring-1 focus:ring-[#6f4315] shadow-xs placeholder:text-[#837469]"
+              onChange={(e) => handleQueryChange(e.target.value)}
+              onFocus={() => {
+                if (searchResults.length > 0) setShowDropdown(true);
+              }}
+              className="w-full pl-9 pr-8 py-2 text-xs bg-white rounded-xl border border-[#d5c3b6] text-[#201b0e] focus:outline-none focus:ring-2 focus:ring-[#6f4315] shadow-xs placeholder:text-[#837469] font-medium"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setShowDropdown(false);
+                  setActiveTargetSpot(null);
+                }}
+                className="absolute right-2.5 top-2 text-[#837469] hover:text-[#201b0e] p-0.5 cursor-pointer"
+                title="ล้างคำค้นหา"
+              >
+                <span className="material-symbols-outlined text-[15px]">close</span>
+              </button>
+            )}
           </div>
           <button
+            type="submit"
+            className="px-3 py-2 rounded-xl bg-[#6f4315] text-white font-title-md text-xs shadow-sm hover:bg-[#8b5a2b] active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer font-bold"
+          >
+            <span className="material-symbols-outlined text-[16px]">explore</span>
+            <span>{isSearching ? 'กำลังค้นหา...' : 'ค้นหาพิกัด'}</span>
+          </button>
+          <button
             type="button"
-            onClick={() => setIsAddPinOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-[#8b5a2b] text-white font-title-md text-xs shadow-sm hover:bg-[#6f4315] active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer"
+            onClick={handleOpenAddPin}
+            className="px-3 py-2 rounded-xl bg-[#fdf3dc] text-[#6f4315] border border-[#d5c3b6] font-title-md text-xs shadow-2xs hover:bg-[#ffdea5]/50 active:scale-95 transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer font-semibold"
           >
             <span className="material-symbols-outlined text-[16px]">add_location_alt</span>
             <span>+ ปักหมุด</span>
           </button>
         </form>
+
+        {/* Live Autocomplete Dropdown - 100% Real World Match */}
+        {showDropdown && searchResults.length > 0 && (
+          <div className="absolute top-full left-4 right-4 mt-1 bg-white rounded-xl shadow-2xl border border-[#d5c3b6] z-50 max-h-60 overflow-y-auto divide-y divide-[#ece2cc] animate-in fade-in slide-in-from-top-1">
+            <div className="px-3 py-1.5 bg-[#fdfaf3] text-[#6f4315] font-label-coord text-[9px] font-bold uppercase flex items-center justify-between">
+              <span>ผลลัพธ์พิกัดจริงบนโลก ({searchResults.length})</span>
+              <span className="text-[#837469]">แตะเพื่อหมุนลูกโลกไปยังตำแหน่ง</span>
+            </div>
+            {searchResults.map((loc) => (
+              <div
+                key={loc.id}
+                onClick={() => handleSelectLocation(loc)}
+                className="p-2.5 hover:bg-[#fff8f0] flex items-center justify-between cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-xl shrink-0">{loc.flag}</span>
+                  <div className="min-w-0">
+                    <span className="font-headline-sm text-xs text-[#201b0e] font-bold block truncate">
+                      {loc.nameTh || loc.name}
+                      {loc.nameTh && loc.name !== loc.nameTh && (
+                        <span className="font-label-coord text-[10px] text-[#837469] font-normal ml-1">
+                          ({loc.name})
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-label-coord text-[9px] text-[#837469] block truncate">
+                      {loc.countryTh || loc.country} • {loc.category}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0 ml-2">
+                  <span className="font-label-coord text-[9px] text-[#465f88] font-bold block">
+                    {formatCoordinates(loc.lat, loc.lng)}
+                  </span>
+                  <span className="font-label-stamp text-[8px] text-[#6f4315] hover:underline flex items-center justify-end gap-0.5">
+                    <span>หมุนโลก</span>
+                    <span className="material-symbols-outlined text-[11px]">arrow_forward</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Popular Destination Quick Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 no-scrollbar">
+          <span className="font-label-coord text-[9px] text-[#837469] uppercase font-bold shrink-0">
+            ยอดนิยม:
+          </span>
+          {[
+            POPULAR_WORLD_LOCATIONS[0], // Bangkok
+            POPULAR_WORLD_LOCATIONS[1], // Chiang Mai
+            POPULAR_WORLD_LOCATIONS[2], // Phuket
+            POPULAR_WORLD_LOCATIONS[9], // Tokyo
+            POPULAR_WORLD_LOCATIONS[20], // Paris
+            POPULAR_WORLD_LOCATIONS[21], // London
+            POPULAR_WORLD_LOCATIONS[25], // Switzerland
+            POPULAR_WORLD_LOCATIONS[26], // Iceland
+            POPULAR_WORLD_LOCATIONS[34], // New York
+          ].map((loc) => (
+            <button
+              key={`chip-${loc.id}`}
+              type="button"
+              onClick={() => handleSelectLocation(loc)}
+              className="px-2 py-0.5 rounded-full bg-[#fdf3dc] text-[#6f4315] hover:bg-[#ffdea5] text-[10px] font-label-coord flex items-center gap-1 shrink-0 border border-[#d5c3b6]/60 transition-colors cursor-pointer shadow-2xs font-semibold"
+            >
+              <span>{loc.flag}</span>
+              <span>{loc.nameTh}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Explorer Pins Horizontal List Carousel */}
@@ -1153,6 +1557,7 @@ export const GlobeView: React.FC<GlobeViewProps> = ({
       <AddPinModal
         isOpen={isAddPinOpen}
         onClose={() => setIsAddPinOpen(false)}
+        initialData={pinModalInitialData}
         onAddPin={(newPin) => {
           onAddPin(newPin);
           setSelectedPin(newPin);

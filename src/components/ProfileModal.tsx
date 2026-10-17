@@ -16,6 +16,7 @@ interface ProfileModalProps {
   onSignUpNewUser: (newUser: Omit<UserProfile, 'id' | 'docId' | 'registeredAt'>) => void;
   onResetDataToZero: () => void;
   onLoadDemoData: () => void;
+  onLogout?: () => void;
   onToast: (msg: string) => void;
   initialMode?: 'view' | 'edit' | 'signup';
 }
@@ -29,6 +30,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onSignUpNewUser,
   onResetDataToZero,
   onLoadDemoData,
+  onLogout,
   onToast,
   initialMode = 'view',
 }) => {
@@ -453,28 +455,45 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm('คุณต้องการรีเซ็ตข้อมูลทั้งหมด (โปสการ์ด, แสตมป์, พาสปอร์ต, หมุด) เป็น 0 หรือไม่?')) {
+                <div className="flex flex-col sm:flex-row items-center justify-between pt-2 gap-2">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
                         onResetDataToZero();
-                      }
-                    }}
-                    className="text-[11px] text-[#ba1a1a] hover:underline flex items-center gap-1 cursor-pointer font-medium"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">restart_alt</span>
-                    <span>รีเซ็ตข้อมูลทั้งหมดเป็น 0</span>
-                  </button>
+                        onToast('รีเซ็ตข้อมูลทั้งหมดเป็น 0 เรียบร้อยแล้ว');
+                      }}
+                      className="text-[11px] text-[#ba1a1a] hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">restart_alt</span>
+                      <span>รีเซ็ตข้อมูลทั้งหมดเป็น 0</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={onLoadDemoData}
-                    className="text-[11px] text-[#465f88] hover:underline flex items-center gap-1 cursor-pointer font-medium"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">download</span>
-                    <span>โหลดข้อมูลตัวอย่าง (Demo Data)</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={onLoadDemoData}
+                      className="text-[11px] text-[#465f88] hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">download</span>
+                      <span>โหลดข้อมูลตัวอย่าง (Demo)</span>
+                    </button>
+                  </div>
+
+                  {onLogout && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        stopCamera();
+                        onClose();
+                        onLogout();
+                      }}
+                      className="text-[11px] text-[#837469] hover:text-[#ba1a1a] flex items-center gap-1 cursor-pointer font-medium"
+                      title="ออกจากระบบเพื่อทดสอบการลงทะเบียนใช้งานครั้งแรก"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">logout</span>
+                      <span>ออกจากระบบ / ลงทะเบียนใหม่</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </>

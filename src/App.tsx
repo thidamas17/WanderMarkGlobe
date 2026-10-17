@@ -19,6 +19,7 @@ import { StampsView } from './components/StampsView';
 import { PassportView } from './components/PassportView';
 import { GlobeView } from './components/GlobeView';
 import { ProfileModal } from './components/ProfileModal';
+import { FirstTimeRegistrationModal } from './components/FirstTimeRegistrationModal';
 
 const STORAGE_KEYS = {
   USER: 'wandermark_user_profile',
@@ -27,61 +28,91 @@ const STORAGE_KEYS = {
   PASSPORT: 'wandermark_passport_stamps',
   PINS: 'wandermark_globe_pins',
   INITIALIZED: 'wandermark_app_initialized',
+  IS_REGISTERED: 'wandermark_is_registered',
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('globe');
 
-  // Load User Profile from localStorage or default
+  // Check if user has completed first-time registration
+  const [isRegistered, setIsRegistered] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  // Load User Profile from localStorage or blank zeroed profile if new
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     try {
+      const isReg = localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
       const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      if (saved) return JSON.parse(saved);
+      if (isReg && saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Failed to parse saved user', e);
     }
-    return DEFAULT_USER_PROFILE;
+    return {
+      id: 'usr-new',
+      username: '',
+      fullName: 'นักสำรวจคนใหม่',
+      email: '',
+      phoneNumber: '',
+      avatarUrl: '/logo.svg',
+      bio: 'พร้อมออกเดินทางบันทึกโลกกว้าง',
+      titleRank: 'NOVICE EXPLORER',
+      docId: 'WM-000000',
+      registeredAt: new Date().toISOString().split('T')[0],
+    };
   });
 
-  // Load Collections from localStorage or mockData
+  // Load Collections from localStorage, or empty [] when entering for first time (set to 0)
   const [postcards, setPostcards] = useState<PostcardItem[]>(() => {
     try {
+      const isReg = localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
+      if (!isReg) return [];
       const saved = localStorage.getItem(STORAGE_KEYS.POSTCARDS);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Failed to parse saved postcards', e);
     }
-    return INITIAL_POSTCARDS;
+    return [];
   });
 
   const [stamps, setStamps] = useState<StampItem[]>(() => {
     try {
+      const isReg = localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
+      if (!isReg) return [];
       const saved = localStorage.getItem(STORAGE_KEYS.STAMPS);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Failed to parse saved stamps', e);
     }
-    return INITIAL_STAMPS;
+    return [];
   });
 
   const [passportStamps, setPassportStamps] = useState<PassportVisaStamp[]>(() => {
     try {
+      const isReg = localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
+      if (!isReg) return [];
       const saved = localStorage.getItem(STORAGE_KEYS.PASSPORT);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Failed to parse saved passport stamps', e);
     }
-    return INITIAL_PASSPORT_STAMPS;
+    return [];
   });
 
   const [globePins, setGlobePins] = useState<GlobePin[]>(() => {
     try {
+      const isReg = localStorage.getItem(STORAGE_KEYS.IS_REGISTERED) === 'true';
+      if (!isReg) return [];
       const saved = localStorage.getItem(STORAGE_KEYS.PINS);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Failed to parse saved globe pins', e);
     }
-    return INITIAL_GLOBE_PINS;
+    return [];
   });
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -187,8 +218,31 @@ export default function App() {
     setStamps([]);
     setPassportStamps([]);
     setGlobePins([]);
+    setIsRegistered(true);
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.IS_REGISTERED, 'true');
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(createdProfile));
+      localStorage.setItem(STORAGE_KEYS.POSTCARDS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.STAMPS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PASSPORT, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PINS, JSON.stringify([]));
+    } catch (e) {
+      console.error(e);
+    }
 
     showToast(`ยินดีต้อนรับ ${createdProfile.fullName}! ข้อมูลเริ่มต้นที่ 0 พร้อมออกเดินทางแล้ว`);
+  };
+
+  // Log out and return to first-time registration screen
+  const handleLogout = () => {
+    setIsRegistered(false);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.IS_REGISTERED);
+    } catch (e) {
+      console.error(e);
+    }
+    showToast('ออกจากระบบเรียบร้อย กลับสู่หน้าลงทะเบียนครั้งแรก');
   };
 
   // Reset all data to zero manually
@@ -197,6 +251,14 @@ export default function App() {
     setStamps([]);
     setPassportStamps([]);
     setGlobePins([]);
+    try {
+      localStorage.setItem(STORAGE_KEYS.POSTCARDS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.STAMPS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PASSPORT, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PINS, JSON.stringify([]));
+    } catch (e) {
+      console.error(e);
+    }
     showToast('รีเซ็ตข้อมูลทั้งหมดเป็น 0 เรียบร้อยแล้ว');
   };
 
@@ -207,6 +269,17 @@ export default function App() {
     setPassportStamps(INITIAL_PASSPORT_STAMPS);
     setGlobePins(INITIAL_GLOBE_PINS);
     setUserProfile(DEFAULT_USER_PROFILE);
+    setIsRegistered(true);
+    try {
+      localStorage.setItem(STORAGE_KEYS.IS_REGISTERED, 'true');
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(DEFAULT_USER_PROFILE));
+      localStorage.setItem(STORAGE_KEYS.POSTCARDS, JSON.stringify(INITIAL_POSTCARDS));
+      localStorage.setItem(STORAGE_KEYS.STAMPS, JSON.stringify(INITIAL_STAMPS));
+      localStorage.setItem(STORAGE_KEYS.PASSPORT, JSON.stringify(INITIAL_PASSPORT_STAMPS));
+      localStorage.setItem(STORAGE_KEYS.PINS, JSON.stringify(INITIAL_GLOBE_PINS));
+    } catch (e) {
+      console.error(e);
+    }
     showToast('โหลดข้อมูลตัวอย่าง (Demo Data) สำเร็จ');
   };
 
@@ -221,6 +294,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         userProfile={userProfile}
+        isRegistered={isRegistered}
         onProfileClick={() => {
           setProfileModalMode('view');
           setIsProfileModalOpen(true);
@@ -272,6 +346,12 @@ export default function App() {
       {/* Fixed Bottom Navigation Belt */}
       <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />
 
+      {/* Mandatory First-Time Registration Modal (Blocks app until user completes registration) */}
+      <FirstTimeRegistrationModal
+        isOpen={!isRegistered}
+        onRegister={handleSignUpNewUser}
+      />
+
       {/* Profile & Sign Up Modal */}
       <ProfileModal
         isOpen={isProfileModalOpen}
@@ -288,6 +368,7 @@ export default function App() {
         onSignUpNewUser={handleSignUpNewUser}
         onResetDataToZero={handleResetDataToZero}
         onLoadDemoData={handleLoadDemoData}
+        onLogout={handleLogout}
         onToast={showToast}
       />
 
